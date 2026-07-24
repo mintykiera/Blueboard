@@ -21,7 +21,12 @@ type BlockLink = {
   created_at: string;
 };
 
-const LINK_COLORS = ["var(--marker-blue)", "var(--marker-red)", "var(--marker-green)", "var(--marker-yellow)"];
+const LINK_COLORS = [
+  "var(--marker-blue)",
+  "var(--marker-red)",
+  "var(--marker-green)",
+  "var(--marker-yellow)",
+];
 
 export function QuickLinks({ blockId, role }: { blockId: string; role: string }) {
   const queryClient = useQueryClient();
@@ -145,16 +150,16 @@ export function QuickLinks({ blockId, role }: { blockId: string; role: string })
           </Dialog>
         )}
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">Jump straight into your block's resources.</p>
-      
+      <p className="mt-1 text-xs text-muted-foreground">
+        Jump straight into your block's resources.
+      </p>
+
       <div className="mt-4 grid gap-3">
         {links.length === 0 && (
-          <p className="py-2 text-center text-sm text-muted-foreground">
-            No links added yet.
-          </p>
+          <p className="py-2 text-center text-sm text-muted-foreground">No links added yet.</p>
         )}
         {links.map((l, i) => (
-          <div key={l.id} className="group relative flex items-center gap-3">
+          <div key={l.id} className="group flex items-center gap-2">
             <a
               href={l.url}
               target="_blank"
@@ -170,13 +175,14 @@ export function QuickLinks({ blockId, role }: { blockId: string; role: string })
               <span className="flex-1 truncate font-semibold">{l.title}</span>
               <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-foreground" />
             </a>
-            
+
             {role === "beadle" && (
               <button
                 onClick={() => deleteMutation.mutate(l.id)}
                 disabled={deleteMutation.isPending}
-                className="absolute -right-2 top-1/2 flex -translate-y-1/2 items-center justify-center rounded border-2 border-transparent p-1 text-ink/40 transition-colors hover:border-ink hover:bg-card hover:text-ink sm:opacity-0 sm:group-hover:opacity-100"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-md border-2 border-ink bg-card text-muted-foreground shadow-[3px_3px_0_0_var(--color-ink)] transition-all hover:bg-rose-500 hover:text-white hover:shadow-[4px_4px_0_0_var(--color-ink)] active:translate-y-[1px]"
                 aria-label="Delete link"
+                title="Delete Link"
               >
                 <X className="h-4 w-4" strokeWidth={2.5} />
               </button>
