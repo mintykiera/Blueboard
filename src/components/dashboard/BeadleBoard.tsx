@@ -1,0 +1,244 @@
+import { useState } from "react";
+import { Pin, Bell, X, Send } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
+import { Textarea } from "@/components/ui/textarea";
+
+const NOTE_COLORS = ["var(--marker-yellow)", "#FED7D7", "#BEE3F8", "#C6F6D5"];
+
+type Announcement = {
+  id: string;
+  content: string;
+  created_at: string;
+  profiles?: { full_name: string | null } | null;
+};
+
+function parseMarkdownLine(text: string): React.ReactNode[] {
+  const tokens: React.ReactNode[] = [];
+  let keyCounter = 0;
+
+  const regex = /(\[.*?\]\(https?:\/\/[^\s\)]+\)|\*\*.*?\*\*|\*.*?\*|`.*?`)/g;
+  const parts = text.split(regex);
+
+  parts.forEach((part) => {
+    if (!part) return;
+
+    const linkMatch = part.match(/^\[(.*?)\]\((https?:\/\/[^\s\)]+)\)$/);
+    if (linkMatch) {
+      tokens.push(
+        <a
+          key={keyCounter++}
+          href={linkMatch[2]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-bold underline hover:opacity-80"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {linkMatch[1]}
+        </a>,
+      );
+      return;
+    }
+
+    const boldMatch = part.match(/^\*\*(.*?)\*\*$/);
+    if (boldMatch) {
+      tokens.push(
+        <strong key={keyCounter++} className="font-extrabold">
+          {boldMatch[1]}
+        </strong>,
+      );
+      return;
+    }
+
+    const italicMatch = part.match(/^\*(.*?)\*$/);
+    if (italicMatch) {
+      tokens.push(
+        <em key={keyCounter++} className="italic">
+          {italicMatch[1]}
+        </em>,
+      );
+      return;
+    }
+
+    const codeMatch = part.match(/^`(.*?)`$/);
+    if (codeMatch) {
+      tokens.push(
+        <code
+          key={keyCounter++}
+          className="rounded bg-black/10 px-1 py-0.5 font-mono text-xs font-semibold"
+        >
+          {codeMatch[1]}
+        </code>,
+      );
+      return;
+    }
+
+    tokens.push(<span key={keyCounter++}>{part}</span>);
+  });
+
+  return tokens;
+}
+
+function MarkdownContent({ content }: { content: string }) {
+  const lines = content.split("\n");
+
+  return (
+    <div className="space-y-1">
+      {lines.map((line, lineIdx) => {
+        const elements = parseMarkdownLine(line);
+        return (
+          <p key={lineIdx} className="min-h-[1.2em] whitespace-pre-wrap leading-relaxed">
+            {elements}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+export function BeadleBoard({ blockId, role }: { blockId: string; role: string }) {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+  const [newContent, setNewContent] = useState("");
+
+  const { data: announcements = [] } = useQuery({
+    queryKey: ["beadle-announcements", blockId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("beadle_announcements")
+        .select(
+          `
+          id,
+          content,
+          created_at,
+          profiles(full_name)
+        `,
+        )
+        .eq("block_id", blockId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data as Announcement[];
+    },
+    enabled: !!blockId,
+  });
+
+  const addMutation = useMutation({
+    mutationFn: async (content: string) => {
+      if (!profile?.id) throw new Error("Not logged in");
+      const { error } = await supabase.from("beadle_announcements").insert({
+        block_id: blockId,
+        author_id: profile.id,
+        content,
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["beadle-announcements", blockId] });
+      setNewContent("");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("beadle_announcements").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["beadle-announcements", blockId] });
+    },
+  });
+
+  const handleAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newContent.trim()) {
+      addMutation.mutate(newContent.trim());
+    }
+  };
+
+  return (
+    <section className="board relative p-5 sm:p-6" id="announcements">
+      <div className="absolute -top-3 left-6 flex items-center gap-2 rounded-full border-2 border-ink bg-card px-3 py-1 shadow-[2px_2px_0_0_var(--color-ink)]">
+        <Pin
+          className="h-3.5 w-3.5 -rotate-45"
+          style={{ color: "var(--marker-red)" }}
+          strokeWidth={2.5}
+        />
+        <span className="marker text-sm">Beadle Board</span>
+      </div>
+      <div className="mt-4 flex items-center justify-between">
+        <h2 className="text-lg font-bold">Announcements</h2>
+        <Bell className="h-4 w-4 text-muted-foreground" />
+      </div>
+
+      {role === "beadle" && (
+        <form onSubmit={handleAdd} className="mt-4 flex flex-col gap-2">
+          <Textarea
+            value={newContent}
+            onChange={(e) => setNewContent(e.target.value)}
+            placeholder="Post an announcement... (Supports markdown & new lines)"
+            className="min-h-[80px] w-full rounded-md border-2 border-ink font-medium"
+            disabled={addMutation.isPending}
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-muted-foreground">
+              Tip: Use **bold**, *italic*, or [link](url)
+            </span>
+            <Button
+              type="submit"
+              disabled={addMutation.isPending || !newContent.trim()}
+              className="h-9 gap-2 rounded-md border-2 border-ink bg-[var(--marker-blue)] px-4 font-bold text-white shadow-[2px_2px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:bg-[var(--marker-blue)] hover:shadow-[3px_3px_0_0_var(--color-ink)]"
+            >
+              <Send className="h-3.5 w-3.5" strokeWidth={2.5} /> Post
+            </Button>
+          </div>
+        </form>
+      )}
+
+      <div className="mt-4 space-y-3">
+        {announcements.length === 0 && (
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            No announcements from your beadle yet.
+          </p>
+        )}
+        {announcements.map((n, i) => {
+          const authorName =
+            (n.profiles && !Array.isArray(n.profiles) && n.profiles.full_name) || "Beadle";
+          return (
+            <div
+              key={n.id}
+              className="group relative rounded-md border-2 border-ink p-3.5 shadow-[3px_3px_0_0_var(--color-ink)]"
+              style={{
+                background: NOTE_COLORS[i % NOTE_COLORS.length],
+                transform: `rotate(${i % 2 === 0 ? -0.4 : 0.5}deg)`,
+              }}
+            >
+              <div className="pr-6 text-sm font-medium text-ink" style={{ color: "var(--ink)" }}>
+                <MarkdownContent content={n.content} />
+              </div>
+              <p
+                className="mt-3 text-[10px] font-bold uppercase tracking-wider"
+                style={{ color: "var(--ink)" }}
+              >
+                — {authorName}
+              </p>
+
+              {role === "beadle" && (
+                <button
+                  onClick={() => deleteMutation.mutate(n.id)}
+                  disabled={deleteMutation.isPending}
+                  className="absolute right-2 top-2 rounded border-2 border-transparent p-0.5 text-ink/40 transition-colors hover:border-ink hover:bg-white/50 hover:text-ink sm:opacity-0 sm:group-hover:opacity-100"
+                  aria-label="Delete announcement"
+                >
+                  <X className="h-3 w-3" strokeWidth={3} />
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
