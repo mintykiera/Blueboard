@@ -32,7 +32,6 @@ function LoginPage() {
     const centerX = rect.width / 2;
     const centerY = rect.height / 2;
 
-    // Max rotation is 5 degrees
     const rotateX = ((y - centerY) / centerY) * -5;
     const rotateY = ((x - centerX) / centerX) * 5;
 

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { fetchIcsServerFn } from "@/lib/server-ics";
 
 interface IcsEvent {
   uid: string;
@@ -108,7 +109,6 @@ export async function syncCanvasIcs(blockId: string, icsUrl: string, userId: str
     throw new Error("Invalid URL format. Please paste a valid Canvas .ics feed link.");
   }
 
-  // 1. Try Edge Function first
   try {
     const { data, error } = await supabase.functions.invoke("parse-canvas", {
       body: {
@@ -120,24 +120,23 @@ export async function syncCanvasIcs(blockId: string, icsUrl: string, userId: str
     if (!error && data?.success) {
       return { success: true, count: data.synced, message: data.message };
     }
-  } catch (_edgeErr) {
-    // Fall back to client-side parsing if Edge Function is missing/unreachable
-  }
+  } catch (_edgeErr) {}
 
-  // 2. Multi-Proxy Fallback Chain for Client-Side Fetch
   let icsText = "";
 
-  // Try direct fetch first
   try {
-    const res = await fetch(trimmedUrl);
-    if (res.ok) {
-      icsText = await res.text();
-    }
-  } catch (_directErr) {
-    // Direct fetch blocked by CORS (expected for Canvas feeds)
+    icsText = await fetchIcsServerFn({ data: trimmedUrl });
+  } catch (_serverErr) {}
+
+  if (!icsText || !icsText.includes("BEGIN:VCALENDAR")) {
+    try {
+      const res = await fetch(trimmedUrl);
+      if (res.ok) {
+        icsText = await res.text();
+      }
+    } catch (_directErr) {}
   }
 
-  // If direct fetch didn't return valid ics, try proxy fallback chain
   if (!icsText || !icsText.includes("BEGIN:VCALENDAR")) {
     const proxyGenerators = [
       (u: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
@@ -156,9 +155,7 @@ export async function syncCanvasIcs(blockId: string, icsUrl: string, userId: str
             break;
           }
         }
-      } catch (_proxyErr) {
-        // Continue to next proxy in chain
-      }
+      } catch (_proxyErr) {}
     }
   }
 

@@ -273,8 +273,8 @@ function Blueboard() {
     () =>
       rawTasks
         .map((t: any) => {
-          const isBeadleTask =
-            t.source === "canvas_ics" || (t.created_by && beadleProfileIds.has(t.created_by));
+          const isBeadleCreator = t.created_by && beadleProfileIds.has(t.created_by);
+          const isBeadleTask = t.source === "manual" && isBeadleCreator;
           const isPersonalTask = !isBeadleTask;
           const isUserCreator = t.created_by === profile?.id;
 
@@ -287,8 +287,6 @@ function Blueboard() {
           };
         })
         .filter((t) => {
-          // Beadle verified tasks are public for all students in the block.
-          // Personal tasks created by non-beadles are ONLY visible to the creator!
           if (t.isBeadleTask) return true;
           return t.isUserCreator;
         }),
@@ -742,7 +740,6 @@ function TaskCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
             {task.course_code || "MISC"}
           </span>
 
-          {/* Requirement 1 & 2: Beadle verified task vs Personal Task badge */}
           {task.isBeadleTask ? (
             <span
               className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-blue-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]"
@@ -759,7 +756,6 @@ function TaskCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
             </span>
           )}
 
-          {/* Requirement 3: Overdue highlight badge */}
           {isOverdue && (
             <span className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-rose-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)] animate-pulse">
               <AlertTriangle className="h-3 w-3" strokeWidth={2.5} /> OVERDUE

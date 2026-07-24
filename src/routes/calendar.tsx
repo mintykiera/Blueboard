@@ -125,6 +125,26 @@ function CalendarPage() {
     enabled: !!blockId,
   });
 
+  const { data: blockMembers = [] } = useQuery({
+    queryKey: ["block-members", blockId],
+    queryFn: async () => {
+      if (!blockId) return [];
+      const { data, error } = await supabase
+        .from("block_members")
+        .select("profile_id, role")
+        .eq("block_id", blockId);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!blockId,
+  });
+
+  const beadleProfileIds = useMemo(
+    () =>
+      new Set(blockMembers.filter((m: any) => m.role === "beadle").map((m: any) => m.profile_id)),
+    [blockMembers],
+  );
+
   const { data: completionSet = new Set<string>() } = useQuery({
     queryKey: ["completions", profile?.id],
     queryFn: async () => {
@@ -141,11 +161,26 @@ function CalendarPage() {
 
   const tasks: Task[] = useMemo(
     () =>
-      rawTasks.map((t: any) => ({
-        ...t,
-        done: completionSet.has(t.id),
-      })),
-    [rawTasks, completionSet],
+      rawTasks
+        .map((t: any) => {
+          const isBeadleCreator = t.created_by && beadleProfileIds.has(t.created_by);
+          const isBeadleTask = t.source === "manual" && isBeadleCreator;
+          const isPersonalTask = !isBeadleTask;
+          const isUserCreator = t.created_by === profile?.id;
+
+          return {
+            ...t,
+            done: completionSet.has(t.id),
+            isBeadleTask,
+            isPersonalTask,
+            isUserCreator,
+          };
+        })
+        .filter((t) => {
+          if (t.isBeadleTask) return true;
+          return t.isUserCreator;
+        }),
+    [rawTasks, completionSet, beadleProfileIds, profile?.id],
   );
 
   const toggleMutation = useMutation({
@@ -187,20 +222,18 @@ function CalendarPage() {
 
   const today = new Date();
 
-  // Calendar calculations
   const year = currentMonthDate.getFullYear();
   const month = currentMonthDate.getMonth();
 
   const firstDayOfMonth = new Date(year, month, 1);
   const lastDayOfMonth = new Date(year, month + 1, 0);
 
-  const startingDayOfWeek = firstDayOfMonth.getDay(); // 0 = Sun
+  const startingDayOfWeek = firstDayOfMonth.getDay();
   const totalDaysInMonth = lastDayOfMonth.getDate();
 
   const calendarDays = useMemo(() => {
     const days: { date: Date; isCurrentMonth: boolean }[] = [];
 
-    // Prev month padding
     const prevMonthLastDay = new Date(year, month, 0).getDate();
     for (let i = startingDayOfWeek - 1; i >= 0; i--) {
       days.push({
@@ -209,7 +242,6 @@ function CalendarPage() {
       });
     }
 
-    // Current month days
     for (let day = 1; day <= totalDaysInMonth; day++) {
       days.push({
         date: new Date(year, month, day),
@@ -217,7 +249,6 @@ function CalendarPage() {
       });
     }
 
-    // Next month padding to complete 35 or 42 grid slots
     const totalSlots = days.length > 35 ? 42 : 35;
     const remainingSlots = totalSlots - days.length;
     for (let day = 1; day <= remainingSlots; day++) {
@@ -330,7 +361,6 @@ function CalendarPage() {
       />
 
       <main className="mx-auto max-w-7xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
-        {/* Calendar Header Controls */}
         <div className="board mb-6 flex flex-wrap items-center justify-between gap-4 p-4 sm:p-6">
           <div className="flex items-center gap-3">
             <div
@@ -373,7 +403,6 @@ function CalendarPage() {
           </div>
         </div>
 
-        {/* Days of the Week Header */}
         <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 text-center">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((dayName, idx) => (
             <div
@@ -390,7 +419,6 @@ function CalendarPage() {
           ))}
         </div>
 
-        {/* Monthly Calendar Grid */}
         <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {calendarDays.map(({ date, isCurrentMonth }, idx) => {
             const isTodayDate = isSameDay(date, today);
@@ -410,7 +438,6 @@ function CalendarPage() {
                   isTodayDate && "ring-2 ring-[var(--marker-yellow)] bg-amber-500/10",
                 )}
               >
-                {/* Date Number Header */}
                 <div className="flex items-center justify-between mb-1">
                   <span
                     className={cn(
@@ -429,7 +456,6 @@ function CalendarPage() {
                   )}
                 </div>
 
-                {/* Day Tasks List */}
                 <div className="space-y-1 overflow-y-auto max-h-[85px] scrollbar-none">
                   {dayTasks.map((task) => {
                     const due = task.due_at ? new Date(task.due_at) : null;
@@ -450,7 +476,9 @@ function CalendarPage() {
                         className={cn(
                           "w-full text-left rounded border border-ink p-1 text-[11px] font-semibold transition-transform hover:scale-[1.02] flex items-center justify-between gap-1 shadow-[1px_1px_0_0_var(--color-ink)]",
                           task.done && "opacity-50 line-through bg-muted",
-                          isOverdue && !task.done && "border-rose-600 bg-rose-500/20 text-rose-700 dark:text-rose-300 font-bold shadow-[1.5px_1.5px_0_0_#E11D48]"
+                          isOverdue &&
+                            !task.done &&
+                            "border-rose-600 bg-rose-500/20 text-rose-700 dark:text-rose-300 font-bold shadow-[1.5px_1.5px_0_0_#E11D48]",
                         )}
                         title={`${task.title} ${task.due_at ? `(${new Date(task.due_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })})` : ""}`}
                       >
@@ -484,7 +512,6 @@ function CalendarPage() {
           })}
         </div>
 
-        {/* Bottom Legend & Quick Stats */}
         <div className="board mt-8 flex flex-wrap items-center justify-between gap-4 p-4 text-xs font-semibold">
           <div className="flex items-center gap-4">
             <span className="text-muted-foreground">Legend:</span>
