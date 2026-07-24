@@ -433,8 +433,10 @@ function CalendarPage() {
                 <div className="space-y-1 overflow-y-auto max-h-[85px] scrollbar-none">
                   {dayTasks.map((task) => {
                     const due = task.due_at ? new Date(task.due_at) : null;
+                    const isOverdue = !task.done && due !== null && due.getTime() < Date.now();
                     const isUrgent =
                       !task.done &&
+                      !isOverdue &&
                       due !== null &&
                       (due.getTime() - Date.now()) / 36e5 < 24 &&
                       due.getTime() > Date.now();
@@ -447,7 +449,8 @@ function CalendarPage() {
                         onClick={() => toggleMutation.mutate({ taskId: task.id, done: task.done })}
                         className={cn(
                           "w-full text-left rounded border border-ink p-1 text-[11px] font-semibold transition-transform hover:scale-[1.02] flex items-center justify-between gap-1 shadow-[1px_1px_0_0_var(--color-ink)]",
-                          task.done ? "opacity-50 line-through bg-muted" : "bg-card",
+                          task.done && "opacity-50 line-through bg-muted",
+                          isOverdue && !task.done && "border-rose-600 bg-rose-500/20 text-rose-700 dark:text-rose-300 font-bold shadow-[1.5px_1.5px_0_0_#E11D48]"
                         )}
                         title={`${task.title} ${task.due_at ? `(${new Date(task.due_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })})` : ""}`}
                       >
@@ -462,6 +465,11 @@ function CalendarPage() {
                           )}
                           <span className="truncate">{task.title}</span>
                         </div>
+                        {isOverdue && (
+                          <span className="shrink-0 animate-pulse rounded bg-rose-600 px-1 text-[8px] font-extrabold text-white uppercase">
+                            OVERDUE
+                          </span>
+                        )}
                         {isUrgent && (
                           <span className="shrink-0 animate-pulse rounded bg-[var(--marker-red)] px-1 text-[8px] font-bold text-white uppercase">
                             !

@@ -2,10 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import {
+  AlertTriangle,
   Bell,
   BookOpen,
   Calendar,
   Check,
+  CheckCircle2,
   ChevronDown,
   ExternalLink,
   FileText,
@@ -15,6 +17,7 @@ import {
   Pin,
   Plus,
   RefreshCw,
+  User,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -75,7 +78,7 @@ export const Route = createFileRoute("/")({
   component: Blueboard,
 });
 
-type Task = {
+export type Task = {
   id: string;
   block_id: string;
   title: string;
@@ -87,9 +90,12 @@ type Task = {
   created_at: string;
   updated_at: string;
   done: boolean;
+  isBeadleTask?: boolean;
+  isPersonalTask?: boolean;
+  isUserCreator?: boolean;
 };
 
-type Filter = "all" | "today" | "week" | "done";
+type Filter = "all" | "today" | "week" | "overdue" | "done";
 
 const MARKER_PALETTE = [
   "var(--marker-blue)",
@@ -229,6 +235,26 @@ function Blueboard() {
     enabled: !!blockId,
   });
 
+  const { data: blockMembers = [] } = useQuery({
+    queryKey: ["block-members", blockId],
+    queryFn: async () => {
+      if (!blockId) return [];
+      const { data, error } = await supabase
+        .from("block_members")
+        .select("profile_id, role")
+        .eq("block_id", blockId);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!blockId,
+  });
+
+  const beadleProfileIds = useMemo(
+    () =>
+      new Set(blockMembers.filter((m: any) => m.role === "beadle").map((m: any) => m.profile_id)),
+    [blockMembers],
+  );
+
   const { data: completionSet = new Set<string>() } = useQuery({
     queryKey: ["completions", profile?.id],
     queryFn: async () => {
@@ -245,11 +271,28 @@ function Blueboard() {
 
   const tasks: Task[] = useMemo(
     () =>
-      rawTasks.map((t: any) => ({
-        ...t,
-        done: completionSet.has(t.id),
-      })),
-    [rawTasks, completionSet],
+      rawTasks
+        .map((t: any) => {
+          const isBeadleTask =
+            t.source === "canvas_ics" || (t.created_by && beadleProfileIds.has(t.created_by));
+          const isPersonalTask = !isBeadleTask;
+          const isUserCreator = t.created_by === profile?.id;
+
+          return {
+            ...t,
+            done: completionSet.has(t.id),
+            isBeadleTask,
+            isPersonalTask,
+            isUserCreator,
+          };
+        })
+        .filter((t) => {
+          // Beadle verified tasks are public for all students in the block.
+          // Personal tasks created by non-beadles are ONLY visible to the creator!
+          if (t.isBeadleTask) return true;
+          return t.isUserCreator;
+        }),
+    [rawTasks, completionSet, beadleProfileIds, profile?.id],
   );
 
   const toggleMutation = useMutation({
@@ -323,8 +366,10 @@ function Blueboard() {
       .filter((t) => {
         const due = parseDue(t);
         if (filter === "all") return !t.done;
-        if (filter === "today") return !t.done && due !== null && isSameDay(due, now);
+        if (filter === "today")
+          return !t.done && due !== null && isSameDay(due, now) && due.getTime() >= now.getTime();
         if (filter === "week") return !t.done && due !== null && due <= weekEnd && due >= now;
+        if (filter === "overdue") return !t.done && due !== null && due.getTime() < now.getTime();
         if (filter === "done") return t.done;
         return true;
       })
@@ -336,7 +381,7 @@ function Blueboard() {
         if (!db) return -1;
         return da.getTime() - db.getTime();
       });
-  }, [tasks, filter]);
+  }, [tasks, filter, now, weekEnd]);
 
   const weekTasks = tasks.filter((t) => {
     const due = parseDue(t);
@@ -428,9 +473,15 @@ function Blueboard() {
                 all: tasks.filter((t) => !t.done).length,
                 today: tasks.filter((t) => {
                   const due = parseDue(t);
-                  return !t.done && due !== null && isSameDay(due, now);
+                  return (
+                    !t.done && due !== null && isSameDay(due, now) && due.getTime() >= now.getTime()
+                  );
                 }).length,
                 week: weekTasks.length,
+                overdue: tasks.filter((t) => {
+                  const due = parseDue(t);
+                  return !t.done && due !== null && due.getTime() < now.getTime();
+                }).length,
                 done: doneCount,
               }}
             />
@@ -601,12 +652,14 @@ function FilterBar({
     { id: "all", label: "All Tasks" },
     { id: "today", label: "Due Today" },
     { id: "week", label: "This Week" },
+    { id: "overdue", label: "Overdue ⚠️" },
     { id: "done", label: "Completed" },
   ];
   return (
     <div className="board-sm flex flex-wrap items-center gap-1 p-1">
       {items.map((i) => {
         const active = filter === i.id;
+        const isOverdueTab = i.id === "overdue";
         return (
           <button
             key={i.id}
@@ -617,13 +670,19 @@ function FilterBar({
                 ? "border-2 border-ink text-white shadow-[2px_2px_0_0_var(--color-ink)]"
                 : "text-foreground hover:bg-secondary",
             )}
-            style={active ? { background: "var(--marker-blue)" } : undefined}
+            style={
+              active ? { background: isOverdueTab ? "#E11D48" : "var(--marker-blue)" } : undefined
+            }
           >
             {i.label}
             <span
               className={cn(
                 "rounded-full px-1.5 py-0.5 text-[10px] font-bold",
-                active ? "bg-white/25 text-white" : "bg-secondary text-muted-foreground",
+                active
+                  ? "bg-white/25 text-white"
+                  : isOverdueTab && counts.overdue > 0
+                    ? "bg-rose-500/20 text-rose-600 dark:text-rose-400 font-extrabold"
+                    : "bg-secondary text-muted-foreground",
               )}
             >
               {counts[i.id]}
@@ -638,17 +697,21 @@ function FilterBar({
 function TaskCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
   const due = task.due_at ? new Date(task.due_at) : null;
   const hoursLeft = due ? (due.getTime() - Date.now()) / 36e5 : Infinity;
-  const isUrgent = !task.done && hoursLeft < 24 && hoursLeft > -1;
+  const isOverdue = !task.done && due !== null && due.getTime() < Date.now();
+  const isUrgent = !task.done && !isOverdue && hoursLeft < 24 && hoursLeft > 0;
   const courseColor = getCourseColor(task.course_code);
 
   return (
     <article
       className={cn(
-        "board-sm relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 p-4 sm:p-5",
-        task.done && "opacity-70",
+        "board-sm relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 p-4 sm:p-5 transition-all",
+        task.done && "opacity-60 bg-muted/20",
+        isOverdue &&
+          !task.done &&
+          "bg-rose-50/60 dark:bg-rose-950/20 border-2 border-rose-600 shadow-[4px_4px_0_0_#E11D48]",
       )}
       style={
-        isUrgent
+        isUrgent && !isOverdue
           ? { borderColor: "var(--marker-red)", boxShadow: "4px 4px 0 0 var(--marker-red)" }
           : undefined
       }
@@ -668,13 +731,37 @@ function TaskCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <span
-            className="inline-flex items-center rounded-md border-2 border-ink px-2 py-0.5 text-[11px] font-bold text-white"
+            className="inline-flex items-center rounded-md border-2 border-ink px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]"
             style={{ background: courseColor }}
           >
             {task.course_code || "MISC"}
           </span>
+
+          {/* Requirement 1 & 2: Beadle verified task vs Personal Task badge */}
+          {task.isBeadleTask ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-blue-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]"
+              title="Official task assigned by a Beadle"
+            >
+              <CheckCircle2 className="h-3 w-3" strokeWidth={3} /> Beadle verified task
+            </span>
+          ) : (
+            <span
+              className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-purple-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]"
+              title="Private personal task created by you"
+            >
+              <User className="h-3 w-3" strokeWidth={2.5} /> Personal Task
+            </span>
+          )}
+
+          {/* Requirement 3: Overdue highlight badge */}
+          {isOverdue && (
+            <span className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-rose-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)] animate-pulse">
+              <AlertTriangle className="h-3 w-3" strokeWidth={2.5} /> OVERDUE
+            </span>
+          )}
           {isUrgent && (
-            <span className="inline-flex items-center rounded-md border-2 border-ink bg-[var(--marker-red)] px-2 py-0.5 text-[11px] font-bold text-white">
+            <span className="inline-flex items-center rounded-md border-2 border-ink bg-[var(--marker-red)] px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]">
               URGENT
             </span>
           )}
@@ -682,12 +769,17 @@ function TaskCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
         <h3
           className={cn(
             "mt-2 truncate text-base font-bold sm:text-lg",
-            task.done && "line-through decoration-2",
+            task.done && "line-through decoration-2 text-muted-foreground",
           )}
         >
           {task.title}
         </h3>
-        <p className="mt-0.5 text-xs font-medium text-muted-foreground sm:text-sm">
+        <p
+          className={cn(
+            "mt-0.5 text-xs font-medium sm:text-sm",
+            isOverdue ? "text-rose-600 font-bold dark:text-rose-400" : "text-muted-foreground",
+          )}
+        >
           {due ? formatDue(due) : "No due date"}
         </p>
       </div>
@@ -696,7 +788,9 @@ function TaskCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
         <div className="hidden shrink-0 sm:block">
           <div
             className="marker text-right text-2xl"
-            style={{ color: isUrgent ? "var(--marker-red)" : "var(--marker-blue)" }}
+            style={{
+              color: isOverdue ? "#E11D48" : isUrgent ? "var(--marker-red)" : "var(--marker-blue)",
+            }}
           >
             {due.toLocaleDateString([], { day: "2-digit" })}
           </div>
@@ -922,7 +1016,28 @@ function OnboardingGate({
 
   const createBlock = useMutation({
     mutationFn: async (name: string) => {
-      if (!profile?.id || !profile?.university_id) throw new Error("Profile not ready.");
+      if (!profile?.id) throw new Error("User not authenticated.");
+
+      let universityId = profile.university_id;
+      if (!universityId) {
+        const { data: uni } = await (supabase.from("universities") as any)
+          .select("id")
+          .limit(1)
+          .maybeSingle();
+
+        const uniData = uni as any;
+
+        if (uniData?.id) {
+          universityId = uniData.id;
+          await (supabase.from("profiles") as any)
+            .update({ university_id: uniData.id })
+            .eq("id", profile.id);
+        }
+      }
+
+      if (!universityId) {
+        throw new Error("No university found. Please contact support.");
+      }
 
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
 
@@ -930,7 +1045,7 @@ function OnboardingGate({
         .from("blocks")
         .insert({
           name,
-          university_id: profile.university_id,
+          university_id: universityId,
           invite_code: code,
           created_by: profile.id,
         } as any)
