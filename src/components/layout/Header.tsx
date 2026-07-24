@@ -217,7 +217,7 @@ function BlockSelector({
           className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm font-bold text-[var(--marker-blue)] focus:bg-[var(--marker-blue)]/10"
         >
           <Plus className="h-4 w-4" strokeWidth={2.5} />
-          Join or Create Block
+          Join or Create Board
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -378,7 +378,8 @@ export function Header({
               href="/"
               className="h-10 items-center gap-2 rounded-lg border-2 border-ink bg-secondary px-3 sm:px-4 font-bold text-foreground shadow-[3px_3px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:shadow-[4px_4px_0_0_var(--color-ink)] inline-flex"
             >
-              <ArrowLeft className="h-4 w-4" strokeWidth={2.5} /> <span className="hidden sm:inline">Back</span>
+              <ArrowLeft className="h-4 w-4" strokeWidth={2.5} />{" "}
+              <span className="hidden sm:inline">Back</span>
             </a>
           )}
 
