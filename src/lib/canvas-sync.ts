@@ -103,12 +103,17 @@ function cleanTitle(summary: string, courseCode: string | null): string {
 }
 
 export async function syncCanvasIcs(blockId: string, icsUrl: string, userId: string) {
-  // Try Edge Function first
+  const trimmedUrl = icsUrl.trim();
+  if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) {
+    throw new Error("Invalid URL format. Please paste a valid Canvas .ics feed link.");
+  }
+
+  // 1. Try Edge Function first
   try {
     const { data, error } = await supabase.functions.invoke("parse-canvas", {
       body: {
         block_id: blockId,
-        canvas_ics_url: icsUrl.trim(),
+        canvas_ics_url: trimmedUrl,
       },
     });
 
@@ -119,26 +124,46 @@ export async function syncCanvasIcs(blockId: string, icsUrl: string, userId: str
     // Fall back to client-side parsing if Edge Function is missing/unreachable
   }
 
-  // Client-side Fallback
+  // 2. Multi-Proxy Fallback Chain for Client-Side Fetch
   let icsText = "";
+
+  // Try direct fetch first
   try {
-    const res = await fetch(icsUrl);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    icsText = await res.text();
+    const res = await fetch(trimmedUrl);
+    if (res.ok) {
+      icsText = await res.text();
+    }
   } catch (_directErr) {
-    // If CORS blocks direct fetch, use a reliable CORS proxy
-    try {
-      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(icsUrl)}`;
-      const proxyRes = await fetch(proxyUrl);
-      if (!proxyRes.ok) throw new Error(`Proxy HTTP ${proxyRes.status}`);
-      icsText = await proxyRes.text();
-    } catch (_proxyErr) {
-      throw new Error("Could not fetch calendar URL. Check URL or CORS settings.");
+    // Direct fetch blocked by CORS (expected for Canvas feeds)
+  }
+
+  // If direct fetch didn't return valid ics, try proxy fallback chain
+  if (!icsText || !icsText.includes("BEGIN:VCALENDAR")) {
+    const proxyGenerators = [
+      (u: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+      (u: string) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+      (u: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+    ];
+
+    for (const makeProxyUrl of proxyGenerators) {
+      try {
+        const proxyUrl = makeProxyUrl(trimmedUrl);
+        const res = await fetch(proxyUrl);
+        if (res.ok) {
+          const text = await res.text();
+          if (text && text.includes("BEGIN:VCALENDAR")) {
+            icsText = text;
+            break;
+          }
+        }
+      } catch (_proxyErr) {
+        // Continue to next proxy in chain
+      }
     }
   }
 
-  if (!icsText.includes("BEGIN:VCALENDAR")) {
-    throw new Error("URL did not return a valid .ics calendar.");
+  if (!icsText || !icsText.includes("BEGIN:VCALENDAR")) {
+    throw new Error("Could not fetch calendar URL. Check URL or CORS settings.");
   }
 
   const events = parseIcs(icsText);

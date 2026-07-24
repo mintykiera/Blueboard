@@ -383,16 +383,21 @@ function Blueboard() {
       });
   }, [tasks, filter, now, weekEnd]);
 
+  const totalTasks = tasks.length;
+  const doneCount = tasks.filter((t) => t.done).length;
+  const progress = totalTasks > 0 ? Math.round((doneCount / totalTasks) * 100) : 0;
+
   const weekTasks = tasks.filter((t) => {
     const due = parseDue(t);
     return due !== null && due <= weekEnd && due >= now && !t.done;
   });
-  const doneCount = tasks.filter((t) => t.done).length;
-  const totalThisWeek = weekTasks.length + doneCount;
-  const progress = totalThisWeek > 0 ? Math.round((doneCount / totalThisWeek) * 100) : 0;
-  const urgentCount = weekTasks.filter((t) => {
+
+  const urgentCount = tasks.filter((t) => {
+    if (t.done) return false;
     const due = parseDue(t);
-    return due !== null && (due.getTime() - Date.now()) / 36e5 < 24;
+    if (!due) return false;
+    const hours = (due.getTime() - Date.now()) / 36e5;
+    return hours > 0 && hours < 24;
   }).length;
 
   const toggle = (id: string) => {
@@ -652,7 +657,7 @@ function FilterBar({
     { id: "all", label: "All Tasks" },
     { id: "today", label: "Due Today" },
     { id: "week", label: "This Week" },
-    { id: "overdue", label: "Overdue ⚠️" },
+    { id: "overdue", label: "Overdue" },
     { id: "done", label: "Completed" },
   ];
   return (

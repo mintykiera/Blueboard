@@ -15,48 +15,74 @@ type Announcement = {
   profiles?: { full_name: string | null } | null;
 };
 
-function parseMarkdownLine(text: string): React.ReactNode[] {
-  const tokens: React.ReactNode[] = [];
-  let keyCounter = 0;
+function parseInlineMarkdown(text: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  let counter = 0;
 
-  const regex = /(\[.*?\]\(https?:\/\/[^\s\)]+\)|\*\*.*?\*\*|\*.*?\*|`.*?`)/g;
+  const regex = /(\[.*?\]\(https?:\/\/[^\s\)]+\)|https?:\/\/[^\s\)]+|\*\*.*?\*\*|__.*?__|~~.*?~~|\*.*?\*|_.*?_|`.*?`)/g;
   const parts = text.split(regex);
 
   parts.forEach((part) => {
     if (!part) return;
 
-    const linkMatch = part.match(/^\[(.*?)\]\((https?:\/\/[^\s\)]+)\)$/);
-    if (linkMatch) {
-      tokens.push(
+    const mdLink = part.match(/^\[(.*?)\]\((https?:\/\/[^\s\)]+)\)$/);
+    if (mdLink) {
+      nodes.push(
         <a
-          key={keyCounter++}
-          href={linkMatch[2]}
+          key={counter++}
+          href={mdLink[2]}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-bold underline hover:opacity-80"
+          className="font-bold underline text-[var(--marker-blue)] hover:opacity-80"
           onClick={(e) => e.stopPropagation()}
         >
-          {linkMatch[1]}
+          {mdLink[1]}
         </a>,
       );
       return;
     }
 
-    const boldMatch = part.match(/^\*\*(.*?)\*\*$/);
+    if (/^https?:\/\/[^\s\)]+$/.test(part)) {
+      nodes.push(
+        <a
+          key={counter++}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-bold underline text-[var(--marker-blue)] hover:opacity-80"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>,
+      );
+      return;
+    }
+
+    const boldMatch = part.match(/^(\*\*|__)(.*?)\1$/);
     if (boldMatch) {
-      tokens.push(
-        <strong key={keyCounter++} className="font-extrabold">
-          {boldMatch[1]}
+      nodes.push(
+        <strong key={counter++} className="font-extrabold text-foreground">
+          {boldMatch[2]}
         </strong>,
       );
       return;
     }
 
-    const italicMatch = part.match(/^\*(.*?)\*$/);
+    const strikeMatch = part.match(/^~~(.*?)~~$/);
+    if (strikeMatch) {
+      nodes.push(
+        <del key={counter++} className="line-through opacity-75">
+          {strikeMatch[1]}
+        </del>,
+      );
+      return;
+    }
+
+    const italicMatch = part.match(/^(\*|_)(.*?)\1$/);
     if (italicMatch) {
-      tokens.push(
-        <em key={keyCounter++} className="italic">
-          {italicMatch[1]}
+      nodes.push(
+        <em key={counter++} className="italic">
+          {italicMatch[2]}
         </em>,
       );
       return;
@@ -64,10 +90,10 @@ function parseMarkdownLine(text: string): React.ReactNode[] {
 
     const codeMatch = part.match(/^`(.*?)`$/);
     if (codeMatch) {
-      tokens.push(
+      nodes.push(
         <code
-          key={keyCounter++}
-          className="rounded bg-black/10 px-1 py-0.5 font-mono text-xs font-semibold"
+          key={counter++}
+          className="rounded border border-ink/40 bg-black/10 px-1 py-0.5 font-mono text-xs font-semibold"
         >
           {codeMatch[1]}
         </code>,
@@ -75,22 +101,81 @@ function parseMarkdownLine(text: string): React.ReactNode[] {
       return;
     }
 
-    tokens.push(<span key={keyCounter++}>{part}</span>);
+    nodes.push(<span key={counter++}>{part}</span>);
   });
 
-  return tokens;
+  return nodes;
 }
 
 function MarkdownContent({ content }: { content: string }) {
   const lines = content.split("\n");
 
   return (
-    <div className="space-y-1">
-      {lines.map((line, lineIdx) => {
-        const elements = parseMarkdownLine(line);
+    <div className="space-y-1 text-sm leading-relaxed">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+
+        if (trimmed.startsWith("# ")) {
+          return (
+            <h1 key={idx} className="marker text-xl font-bold mt-2 mb-1">
+              {parseInlineMarkdown(trimmed.slice(2))}
+            </h1>
+          );
+        }
+
+        if (trimmed.startsWith("## ")) {
+          return (
+            <h2 key={idx} className="marker text-lg font-bold mt-2 mb-1">
+              {parseInlineMarkdown(trimmed.slice(3))}
+            </h2>
+          );
+        }
+
+        if (trimmed.startsWith("### ")) {
+          return (
+            <h3 key={idx} className="font-bold text-base mt-1">
+              {parseInlineMarkdown(trimmed.slice(4))}
+            </h3>
+          );
+        }
+
+        if (/^[-*]\s+/.test(trimmed)) {
+          return (
+            <div key={idx} className="flex items-start gap-2 pl-2 my-0.5">
+              <span className="text-[var(--marker-blue)] font-bold text-base leading-none">•</span>
+              <div className="flex-1">{parseInlineMarkdown(trimmed.replace(/^[-*]\s+/, ""))}</div>
+            </div>
+          );
+        }
+
+        const numMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
+        if (numMatch) {
+          return (
+            <div key={idx} className="flex items-start gap-2 pl-2 my-0.5">
+              <span className="font-bold text-xs text-muted-foreground">{numMatch[1]}.</span>
+              <div className="flex-1">{parseInlineMarkdown(numMatch[2])}</div>
+            </div>
+          );
+        }
+
+        if (trimmed.startsWith("> ")) {
+          return (
+            <blockquote
+              key={idx}
+              className="border-l-4 border-ink bg-secondary/40 pl-3 py-1 my-1 italic rounded-r text-xs"
+            >
+              {parseInlineMarkdown(trimmed.slice(2))}
+            </blockquote>
+          );
+        }
+
+        if (!trimmed) {
+          return <div key={idx} className="h-2" />;
+        }
+
         return (
-          <p key={lineIdx} className="min-h-[1.2em] whitespace-pre-wrap leading-relaxed">
-            {elements}
+          <p key={idx} className="min-h-[1.2em]">
+            {parseInlineMarkdown(line)}
           </p>
         );
       })}
