@@ -83,6 +83,50 @@ function CalendarPage() {
     queryKey: ["user-blocks", profile?.id],
     queryFn: async () => {
       if (!profile?.id) return [];
+
+      let universityId = profile.university_id;
+      if (!universityId) {
+        const { data: uni } = await (supabase.from("universities") as any)
+          .select("id")
+          .limit(1)
+          .maybeSingle();
+        if (uni?.id) {
+          universityId = uni.id;
+          await (supabase.from("profiles") as any)
+            .update({ university_id: uni.id })
+            .eq("id", profile.id);
+        }
+      }
+
+      if (universityId) {
+        const { data: existingPersonal } = await (supabase.from("blocks") as any)
+          .select("id")
+          .eq("created_by", profile.id)
+          .eq("name", "My Personal Board")
+          .maybeSingle();
+
+        if (!existingPersonal) {
+          const code = "PERS-" + Math.random().toString(36).substring(2, 6).toUpperCase();
+          const { data: newPersonal } = await (supabase.from("blocks") as any)
+            .insert({
+              name: "My Personal Board",
+              university_id: universityId,
+              invite_code: code,
+              created_by: profile.id,
+            })
+            .select()
+            .maybeSingle();
+
+          if (newPersonal) {
+            await (supabase.from("block_members") as any).insert({
+              block_id: newPersonal.id,
+              profile_id: profile.id,
+              role: "beadle",
+            });
+          }
+        }
+      }
+
       const { data: members, error: membersErr } = await supabase
         .from("block_members")
         .select("block_id, role, blocks(*)")
@@ -91,13 +135,19 @@ function CalendarPage() {
       if (membersErr) throw membersErr;
       if (!members) return [];
 
-      return members
+      const list = members
         .filter((m: any) => m.blocks)
         .map((m: any) => ({
           id: m.blocks.id,
           name: m.blocks.name,
           role: m.role,
         }));
+
+      list.sort((a: any, b: any) =>
+        a.name.includes("Personal Board") ? -1 : b.name.includes("Personal Board") ? 1 : 0,
+      );
+
+      return list;
     },
     enabled: !!profile?.id,
   });
@@ -358,6 +408,7 @@ function CalendarPage() {
         onRenameBlock={handleRenameBlock}
         onLeaveBlock={handleLeaveBlock}
         onDeleteBlock={handleDeleteBlock}
+        isCalendarPage={true}
       />
 
       <main className="mx-auto max-w-7xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">

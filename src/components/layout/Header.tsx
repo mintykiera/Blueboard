@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  ArrowLeft,
   BookOpen,
   Plus,
   Menu,
@@ -318,6 +319,7 @@ export function Header({
   onLeaveBlock,
   onDeleteBlock,
   onAdd,
+  isCalendarPage,
 }: {
   blockName: string;
   blocks?: BlockOption[];
@@ -328,6 +330,7 @@ export function Header({
   onLeaveBlock?: (blockId: string, blockName: string) => void;
   onDeleteBlock?: (blockId: string, blockName: string) => void;
   onAdd?: () => void;
+  isCalendarPage?: boolean;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const activeBlock = blocks.find((b) => b.id === currentBlockId);
@@ -370,6 +373,15 @@ export function Header({
         </div>
 
         <div className="flex items-center gap-2">
+          {isCalendarPage && (
+            <a
+              href="/"
+              className="h-10 items-center gap-2 rounded-lg border-2 border-ink bg-secondary px-3 sm:px-4 font-bold text-foreground shadow-[3px_3px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:shadow-[4px_4px_0_0_var(--color-ink)] inline-flex"
+            >
+              <ArrowLeft className="h-4 w-4" strokeWidth={2.5} /> <span className="hidden sm:inline">Back</span>
+            </a>
+          )}
+
           <a
             href="/calendar"
             className="hidden h-10 items-center gap-2 rounded-lg border-2 border-ink bg-card px-4 font-semibold text-foreground shadow-[3px_3px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:shadow-[4px_4px_0_0_var(--color-ink)] sm:inline-flex"

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { Link as LinkIcon, ExternalLink, X, Plus } from "lucide-react";
+import { Link as LinkIcon, ExternalLink, Plus, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,12 @@ import {
   DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type BlockLink = {
   id: string;
@@ -33,6 +39,10 @@ export function QuickLinks({ blockId, role }: { blockId: string; role: string })
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newUrl, setNewUrl] = useState("");
+
+  const [editingLink, setEditingLink] = useState<BlockLink | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editUrl, setEditUrl] = useState("");
 
   const { data: links = [] } = useQuery({
     queryKey: ["block-links", blockId],
@@ -70,6 +80,23 @@ export function QuickLinks({ blockId, role }: { blockId: string; role: string })
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, title, url }: { id: string; title: string; url: string }) => {
+      let finalUrl = url;
+      if (!/^https?:\/\//i.test(finalUrl)) {
+        finalUrl = `https://${finalUrl}`;
+      }
+      const { error } = await (supabase.from("block_links") as any)
+        .update({ title, url: finalUrl })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["block-links", blockId] });
+      setEditingLink(null);
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("block_links").delete().eq("id", id);
@@ -84,6 +111,13 @@ export function QuickLinks({ blockId, role }: { blockId: string; role: string })
     e.preventDefault();
     if (newTitle.trim() && newUrl.trim()) {
       addMutation.mutate({ title: newTitle.trim(), url: newUrl.trim() });
+    }
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingLink && editTitle.trim() && editUrl.trim()) {
+      updateMutation.mutate({ id: editingLink.id, title: editTitle.trim(), url: editUrl.trim() });
     }
   };
 
@@ -159,12 +193,15 @@ export function QuickLinks({ blockId, role }: { blockId: string; role: string })
           <p className="py-2 text-center text-sm text-muted-foreground">No links added yet.</p>
         )}
         {links.map((l, i) => (
-          <div key={l.id} className="group flex items-center gap-2">
+          <div
+            key={l.id}
+            className="group flex items-center justify-between gap-2 rounded-md border-2 border-ink bg-card p-3 shadow-[3px_3px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:shadow-[4px_4px_0_0_var(--color-ink)]"
+          >
             <a
               href={l.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex flex-1 items-center gap-3 rounded-md border-2 border-ink bg-card p-3 text-left shadow-[3px_3px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:shadow-[4px_4px_0_0_var(--color-ink)]"
+              className="flex flex-1 items-center gap-3 min-w-0"
             >
               <div
                 className="grid h-9 w-9 shrink-0 place-items-center rounded-md border-2 border-ink"
@@ -177,19 +214,92 @@ export function QuickLinks({ blockId, role }: { blockId: string; role: string })
             </a>
 
             {role === "beadle" && (
-              <button
-                onClick={() => deleteMutation.mutate(l.id)}
-                disabled={deleteMutation.isPending}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-md border-2 border-ink bg-card text-muted-foreground shadow-[3px_3px_0_0_var(--color-ink)] transition-all hover:bg-rose-500 hover:text-white hover:shadow-[4px_4px_0_0_var(--color-ink)] active:translate-y-[1px]"
-                aria-label="Delete link"
-                title="Delete Link"
-              >
-                <X className="h-4 w-4" strokeWidth={2.5} />
-              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 rounded-md border-2 border-transparent p-0 hover:border-ink hover:bg-secondary"
+                    aria-label="Link actions"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-44 rounded-md border-2 border-ink bg-card p-1 shadow-[4px_4px_0_0_var(--color-ink)]"
+                >
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setEditingLink(l);
+                      setEditTitle(l.title);
+                      setEditUrl(l.url);
+                    }}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold focus:bg-secondary"
+                  >
+                    <Pencil className="h-3.5 w-3.5 text-[var(--marker-blue)]" />
+                    Rename Link
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => deleteMutation.mutate(l.id)}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold text-rose-600 focus:bg-rose-500/10 focus:text-rose-600"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete Link
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         ))}
       </div>
+
+      <Dialog open={!!editingLink} onOpenChange={(open) => !open && setEditingLink(null)}>
+        <DialogContent className="board max-w-sm gap-0 border-2 p-0 shadow-[6px_6px_0_0_var(--color-ink)]">
+          <DialogHeader className="border-b-2 border-ink px-6 py-4">
+            <DialogTitle className="marker text-2xl">Edit Link</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-4 px-6 py-5">
+            <div className="grid gap-2">
+              <Label className="text-xs font-bold uppercase tracking-wider">Title</Label>
+              <Input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Title"
+                className="h-11 rounded-md border-2 border-ink font-medium"
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label className="text-xs font-bold uppercase tracking-wider">URL</Label>
+              <Input
+                value={editUrl}
+                onChange={(e) => setEditUrl(e.target.value)}
+                placeholder="URL"
+                className="h-11 rounded-md border-2 border-ink font-medium"
+                required
+              />
+            </div>
+            <DialogFooter className="gap-2 pt-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setEditingLink(null)}
+                className="rounded-md border-2 border-ink font-semibold hover:bg-secondary"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={updateMutation.isPending || !editTitle.trim() || !editUrl.trim()}
+                className="rounded-md border-2 border-ink bg-[var(--marker-blue)] font-bold text-white shadow-[3px_3px_0_0_var(--color-ink)] hover:bg-[var(--marker-blue)] hover:shadow-[4px_4px_0_0_var(--color-ink)]"
+              >
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

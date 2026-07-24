@@ -191,6 +191,49 @@ function Blueboard() {
     queryFn: async () => {
       if (!profile?.id) return [];
 
+      let universityId = profile.university_id;
+      if (!universityId) {
+        const { data: uni } = await (supabase.from("universities") as any)
+          .select("id")
+          .limit(1)
+          .maybeSingle();
+        if (uni?.id) {
+          universityId = uni.id;
+          await (supabase.from("profiles") as any)
+            .update({ university_id: uni.id })
+            .eq("id", profile.id);
+        }
+      }
+
+      if (universityId) {
+        const { data: existingPersonal } = await (supabase.from("blocks") as any)
+          .select("id")
+          .eq("created_by", profile.id)
+          .eq("name", "My Personal Board")
+          .maybeSingle();
+
+        if (!existingPersonal) {
+          const code = "PERS-" + Math.random().toString(36).substring(2, 6).toUpperCase();
+          const { data: newPersonal } = await (supabase.from("blocks") as any)
+            .insert({
+              name: "My Personal Board",
+              university_id: universityId,
+              invite_code: code,
+              created_by: profile.id,
+            })
+            .select()
+            .maybeSingle();
+
+          if (newPersonal) {
+            await (supabase.from("block_members") as any).insert({
+              block_id: newPersonal.id,
+              profile_id: profile.id,
+              role: "beadle",
+            });
+          }
+        }
+      }
+
       const { data: members, error: membersErr } = await supabase
         .from("block_members")
         .select("block_id, role, blocks(*)")
@@ -199,7 +242,7 @@ function Blueboard() {
       if (membersErr) throw membersErr;
       if (!members) return [];
 
-      return members
+      const list = members
         .filter((m: any) => m.blocks)
         .map((m: any) => ({
           id: m.blocks.id,
@@ -208,6 +251,12 @@ function Blueboard() {
           invite_code: m.blocks.invite_code,
           canvas_ics_url: m.blocks.canvas_ics_url,
         }));
+
+      list.sort((a: any, b: any) =>
+        a.name.includes("Personal Board") ? -1 : b.name.includes("Personal Board") ? 1 : 0,
+      );
+
+      return list;
     },
     enabled: !!profile?.id,
   });
@@ -491,7 +540,7 @@ function Blueboard() {
             <div className="mt-4 space-y-4">
               {filtered.length === 0 && (
                 <div className="board p-8 text-center">
-                  <p className="marker text-2xl">All clear ✏️</p>
+                  <p className="marker text-2xl">All clear</p>
                   <p className="mt-2 text-sm text-muted-foreground">
                     Nothing here. Enjoy the empty board.
                   </p>
@@ -504,11 +553,13 @@ function Blueboard() {
           </section>
 
           <aside className="space-y-6">
-            {currentBlock?.role === "beadle" && currentBlock?.invite_code && (
-              <InviteManager inviteCode={currentBlock.invite_code} />
-            )}
+            {!currentBlock?.name?.includes("Personal Board") &&
+              currentBlock?.role === "beadle" &&
+              currentBlock?.invite_code && <InviteManager inviteCode={currentBlock.invite_code} />}
             {blockId && <CanvasSyncButton blockId={blockId} />}
-            {blockId && <BeadleBoard blockId={blockId} role={currentBlock?.role ?? "student"} />}
+            {!currentBlock?.name?.includes("Personal Board") && blockId && (
+              <BeadleBoard blockId={blockId} role={currentBlock?.role ?? "student"} />
+            )}
             {blockId && <QuickLinks blockId={blockId} role={currentBlock?.role ?? "student"} />}
           </aside>
         </div>
@@ -1125,6 +1176,14 @@ function OnboardingGate({
     createBlock.mutate(blockName.trim());
   };
 
+  const [personalName, setPersonalName] = useState("My Personal Board");
+
+  const handleCreatePersonal = () => {
+    setErrorMsg("");
+    const name = personalName.trim() || "My Personal Board";
+    createBlock.mutate(name);
+  };
+
   const content = (
     <div className="w-full">
       {!isModal && (
@@ -1140,18 +1199,41 @@ function OnboardingGate({
         </div>
       )}
 
-      <div
-        className={cn("w-full overflow-hidden", !isModal && "board max-w-4xl p-6 sm:p-10 mx-auto")}
-      >
+      <div className={cn("w-full", !isModal && "board max-w-5xl p-6 sm:p-10 mx-auto")}>
         <div className="text-center">
-          <h2 className="marker text-2xl sm:text-3xl">Join or Create a Block</h2>
+          <h2 className="marker text-2xl sm:text-3xl">Join or Create a Board</h2>
           <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-            Enter a beadle's invite code to join a class, or create your own block.
+            Join your class block with an invite code, create a class block, or set up a personal board.
           </p>
           {errorMsg && <p className="mt-3 text-sm font-semibold text-destructive">{errorMsg}</p>}
         </div>
 
-        <div className="mt-6 grid gap-6 md:grid-cols-2 md:gap-6">
+        <div className="mt-6 grid gap-6 md:grid-cols-3 md:gap-6">
+          <div className="flex flex-col gap-3 rounded-xl border-2 border-ink bg-card p-5 shadow-[4px_4px_0_0_var(--color-ink)]">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border-2 border-ink bg-purple-600 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white">
+              Personal
+            </div>
+            <h3 className="text-xl font-bold">Personal Board</h3>
+            <p className="text-xs text-muted-foreground">
+              Create a private personal workspace for your own deadlines, notes, and links.
+            </p>
+            <div className="mt-auto space-y-3 pt-3">
+              <Input
+                value={personalName}
+                onChange={(e) => setPersonalName(e.target.value)}
+                placeholder="e.g. My Personal Space"
+                className="h-11 border-2 border-ink font-semibold"
+              />
+              <Button
+                onClick={handleCreatePersonal}
+                disabled={createBlock.isPending || joinBlock.isPending}
+                className="h-11 w-full gap-2 rounded-lg border-2 border-ink bg-purple-600 font-bold text-white shadow-[3px_3px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:bg-purple-700 hover:shadow-[4px_4px_0_0_var(--color-ink)] active:translate-y-[2px] disabled:opacity-70 disabled:pointer-events-none"
+              >
+                {createBlock.isPending ? "Creating..." : "Create Personal Board"}
+              </Button>
+            </div>
+          </div>
+
           <div className="flex flex-col gap-3 rounded-xl border-2 border-ink bg-card p-5 shadow-[4px_4px_0_0_var(--color-ink)]">
             <div className="inline-flex w-fit items-center gap-2 rounded-full border-2 border-ink bg-[var(--marker-yellow)] px-3 py-1 text-xs font-bold uppercase tracking-wider">
               Student
@@ -1182,7 +1264,7 @@ function OnboardingGate({
             <div className="inline-flex w-fit items-center gap-2 rounded-full border-2 border-ink bg-[var(--marker-green)] px-3 py-1 text-xs font-bold uppercase tracking-wider text-white">
               Beadle
             </div>
-            <h3 className="text-xl font-bold">Create a Block</h3>
+            <h3 className="text-xl font-bold">Create a Class Block</h3>
             <p className="text-xs text-muted-foreground">
               Are you the beadle? Create a new block board and invite your classmates.
             </p>
@@ -1198,7 +1280,7 @@ function OnboardingGate({
                 disabled={createBlock.isPending || joinBlock.isPending}
                 className="h-11 w-full gap-2 rounded-lg border-2 border-ink bg-[var(--marker-green)] font-bold text-white shadow-[3px_3px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:bg-[var(--marker-green)] hover:shadow-[4px_4px_0_0_var(--color-ink)] active:translate-y-[2px] disabled:opacity-70 disabled:pointer-events-none"
               >
-                {createBlock.isPending ? "Creating..." : "Create Block"}
+                {createBlock.isPending ? "Creating..." : "Create Class Block"}
               </Button>
             </div>
           </div>
