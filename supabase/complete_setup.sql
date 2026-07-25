@@ -49,8 +49,10 @@ create table public.tasks (
   id           uuid primary key default gen_random_uuid(),
   block_id     uuid not null references public.blocks(id) on delete cascade,
   title        text not null,
+  description  text,
   course_code  text,
   due_at       timestamptz,
+  is_personal  boolean not null default false,
   source       text not null default 'manual'
                check (source in ('canvas_ics', 'manual')),
   canvas_uid   text,

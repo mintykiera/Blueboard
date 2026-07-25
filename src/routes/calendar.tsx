@@ -1,20 +1,25 @@
 import { useState, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   ChevronLeft,
   ChevronRight,
   Calendar as CalendarIcon,
   Check,
+  CheckCircle2,
   Plus,
   Clock,
   BookOpen,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Header } from "@/components/layout/Header";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   RenameBlockDialog,
   LeaveBlockDialog,
@@ -36,14 +41,19 @@ type Task = {
   id: string;
   block_id: string;
   title: string;
+  description: string | null;
   course_code: string | null;
   due_at: string | null;
+  is_personal: boolean;
   source: "canvas_ics" | "manual";
   canvas_uid: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
   done: boolean;
+  isBeadleTask?: boolean;
+  isPersonalTask?: boolean;
+  isUserCreator?: boolean;
 };
 
 const MARKER_PALETTE = [
@@ -215,7 +225,7 @@ function CalendarPage() {
       rawTasks
         .map((t: any) => {
           const isBeadleCreator = t.created_by && beadleProfileIds.has(t.created_by);
-          const isBeadleTask = t.source === "manual" && isBeadleCreator;
+          const isBeadleTask = t.source === "manual" && isBeadleCreator && !t.is_personal;
           const isPersonalTask = !isBeadleTask;
           const isUserCreator = t.created_by === profile?.id;
 
@@ -272,6 +282,7 @@ function CalendarPage() {
   });
 
   const today = new Date();
+  const [detailTask, setDetailTask] = useState<Task | null>(null);
 
   const year = currentMonthDate.getFullYear();
   const month = currentMonthDate.getMonth();
@@ -524,7 +535,7 @@ function CalendarPage() {
                     return (
                       <button
                         key={task.id}
-                        onClick={() => toggleMutation.mutate({ taskId: task.id, done: task.done })}
+                        onClick={() => setDetailTask(task)}
                         className={cn(
                           "w-full text-left rounded border border-ink p-1 text-[11px] font-semibold transition-transform hover:scale-[1.02] flex items-center justify-between gap-1 shadow-[1px_1px_0_0_var(--color-ink)]",
                           task.done && "opacity-50 line-through bg-muted",
@@ -580,11 +591,18 @@ function CalendarPage() {
               <span>Course Tag</span>
             </div>
           </div>
-          <div className="text-muted-foreground">
-            Click any task pill to toggle completion status.
-          </div>
+          <div className="text-muted-foreground">Click any task pill to view details.</div>
         </div>
       </main>
+
+      <CalendarTaskDetailsDialog
+        task={detailTask}
+        open={!!detailTask}
+        onOpenChange={(v) => {
+          if (!v) setDetailTask(null);
+        }}
+        onToggle={(taskId, done) => toggleMutation.mutate({ taskId, done })}
+      />
 
       <RenameBlockDialog
         open={renameOpen}
@@ -619,5 +637,84 @@ function CalendarPage() {
         }}
       />
     </div>
+  );
+}
+
+function CalendarTaskDetailsDialog({
+  task,
+  open,
+  onOpenChange,
+  onToggle,
+}: {
+  task: Task | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onToggle: (taskId: string, done: boolean) => void;
+}) {
+  if (!task) return null;
+  const due = task.due_at ? new Date(task.due_at) : null;
+  const courseColor = getCourseColor(task.course_code);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="board max-w-lg gap-0 border-2 p-0 shadow-[6px_6px_0_0_var(--color-ink)]">
+        <DialogHeader className="border-b-2 border-ink px-6 py-4">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <span
+              className="inline-flex items-center rounded-md border-2 border-ink px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]"
+              style={{ background: courseColor }}
+            >
+              {task.course_code || "MISC"}
+            </span>
+            {task.isBeadleTask ? (
+              <span className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-blue-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]">
+                <CheckCircle2 className="h-3 w-3" strokeWidth={3} /> Beadle verified
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-purple-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]">
+                <User className="h-3 w-3" strokeWidth={2.5} /> Personal
+              </span>
+            )}
+          </div>
+          <DialogTitle className="text-xl font-bold">{task.title}</DialogTitle>
+          {due && (
+            <p className="mt-1 text-sm font-medium text-muted-foreground">
+              Due:{" "}
+              {due.toLocaleDateString([], {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}{" "}
+              at {due.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+            </p>
+          )}
+        </DialogHeader>
+        <div className="px-6 py-5">
+          {task.description ? (
+            <div className="prose prose-sm max-w-none [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-3 [&_h2]:mb-1.5 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mt-2 [&_h3]:mb-1 [&_p]:text-sm [&_p]:leading-relaxed [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-2 [&_li]:text-sm [&_li]:mb-0.5 [&_a]:text-[var(--marker-blue)] [&_a]:underline [&_code]:rounded [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-xs [&_code]:font-mono [&_pre]:rounded-md [&_pre]:border-2 [&_pre]:border-ink [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:mb-3 [&_blockquote]:border-l-4 [&_blockquote]:border-[var(--marker-blue)] [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_strong]:font-bold [&_em]:italic [&_hr]:border-ink [&_hr]:my-4">
+              <Markdown remarkPlugins={[remarkGfm]}>{task.description}</Markdown>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">No description provided.</p>
+          )}
+        </div>
+        <div className="border-t-2 border-ink px-6 py-4">
+          <button
+            onClick={() => {
+              onToggle(task.id, task.done);
+              onOpenChange(false);
+            }}
+            className={cn(
+              "w-full flex items-center justify-center gap-2 rounded-md border-2 border-ink px-4 py-2.5 text-sm font-bold transition-all shadow-[3px_3px_0_0_var(--color-ink)] hover:translate-y-[-1px] hover:shadow-[4px_4px_0_0_var(--color-ink)]",
+              task.done ? "bg-secondary text-foreground" : "bg-[var(--marker-green)] text-white",
+            )}
+          >
+            <Check className="h-4 w-4" strokeWidth={3} />
+            {task.done ? "Mark as Incomplete" : "Mark as Complete"}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

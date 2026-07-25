@@ -29,12 +29,12 @@ export function InviteManager({ inviteCode }: { inviteCode: string }) {
         <div className="flex h-10 flex-1 items-center justify-center rounded-md border-2 border-ink bg-secondary text-lg font-bold tracking-widest text-foreground">
           {inviteCode}
         </div>
-        <Button
+        <button
           onClick={handleCopy}
-          className="h-10 w-24 rounded-md border-2 border-ink bg-[var(--marker-blue)] font-bold text-white shadow-[3px_3px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:bg-[var(--marker-blue)] hover:shadow-[4px_4px_0_0_var(--color-ink)]"
+          className="board-sm flex h-10 w-24 items-center justify-center font-bold text-white !bg-[var(--marker-blue)] transition-transform hover:translate-y-[-1px]"
         >
           {copied ? "Copied!" : "Copy"}
-        </Button>
+        </button>
       </div>
     </section>
   );

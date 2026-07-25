@@ -19,7 +19,8 @@ function parseInlineMarkdown(text: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   let counter = 0;
 
-  const regex = /(\[.*?\]\(https?:\/\/[^\s\)]+\)|https?:\/\/[^\s\)]+|\*\*.*?\*\*|__.*?__|~~.*?~~|\*.*?\*|_.*?_|`.*?`)/g;
+  const regex =
+    /(\[.*?\]\(https?:\/\/[^\s\)]+\)|https?:\/\/[^\s\)]+|\*\*.*?\*\*|__.*?__|~~.*?~~|\*.*?\*|_.*?_|`.*?`)/g;
   const parts = text.split(regex);
 
   parts.forEach((part) => {
@@ -271,13 +272,13 @@ export function BeadleBoard({ blockId, role }: { blockId: string; role: string }
             <span className="text-[10px] text-muted-foreground">
               Tip: Use **bold**, *italic*, or [link](url)
             </span>
-            <Button
+            <button
               type="submit"
               disabled={addMutation.isPending || !newContent.trim()}
-              className="h-9 gap-2 rounded-md border-2 border-ink bg-[var(--marker-blue)] px-4 font-bold text-white shadow-[2px_2px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:bg-[var(--marker-blue)] hover:shadow-[3px_3px_0_0_var(--color-ink)]"
+              className="board-sm flex h-9 items-center gap-2 px-4 font-bold text-white !bg-[var(--marker-blue)] transition-transform hover:translate-y-[-1px] disabled:opacity-50"
             >
               <Send className="h-3.5 w-3.5" strokeWidth={2.5} /> Post
-            </Button>
+            </button>
           </div>
         </form>
       )}

@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   AlertTriangle,
   Bell,
@@ -82,8 +84,10 @@ export type Task = {
   id: string;
   block_id: string;
   title: string;
+  description: string | null;
   course_code: string | null;
   due_at: string | null;
+  is_personal: boolean;
   source: "canvas_ics" | "manual";
   canvas_uid: string | null;
   created_by: string | null;
@@ -140,6 +144,7 @@ function Blueboard() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<Filter>("all");
   const [addOpen, setAddOpen] = useState(false);
+  const [detailTask, setDetailTask] = useState<Task | null>(null);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [joinOrCreateOpen, setJoinOrCreateOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -324,7 +329,7 @@ function Blueboard() {
       rawTasks
         .map((t: any) => {
           const isBeadleCreator = t.created_by && beadleProfileIds.has(t.created_by);
-          const isBeadleTask = t.source === "manual" && isBeadleCreator;
+          const isBeadleTask = t.source === "manual" && isBeadleCreator && !t.is_personal;
           const isPersonalTask = !isBeadleTask;
           const isUserCreator = t.created_by === profile?.id;
 
@@ -386,13 +391,15 @@ function Blueboard() {
   });
 
   const addTaskMutation = useMutation({
-    mutationFn: async (input: { title: string; course_code: string; due_at: string }) => {
+    mutationFn: async (input: { title: string; description: string; course_code: string; due_at: string; is_personal: boolean }) => {
       if (!blockId || !profile?.id) throw new Error("Not ready");
       const { error } = await supabase.from("tasks").insert({
         block_id: blockId,
         title: input.title,
+        description: input.description || null,
         course_code: input.course_code || null,
         due_at: input.due_at,
+        is_personal: input.is_personal,
         source: "manual",
         created_by: profile.id,
       } as any);
@@ -548,7 +555,7 @@ function Blueboard() {
                 </div>
               )}
               {filtered.map((t) => (
-                <TaskCard key={t.id} task={t} onToggle={() => toggle(t.id)} />
+                <TaskCard key={t.id} task={t} onToggle={() => toggle(t.id)} onOpenDetails={() => setDetailTask(t)} />
               ))}
             </div>
           </section>
@@ -570,10 +577,17 @@ function Blueboard() {
         open={addOpen}
         onOpenChange={setAddOpen}
         courseCodes={courseCodes}
+        isBeadle={currentBlock?.role === "beadle"}
         onAdd={(input) => {
           addTaskMutation.mutate(input);
           setAddOpen(false);
         }}
+      />
+
+      <TaskDetailsDialog
+        task={detailTask}
+        open={!!detailTask}
+        onOpenChange={(v) => { if (!v) setDetailTask(null); }}
       />
 
       <Dialog open={joinOrCreateOpen} onOpenChange={setJoinOrCreateOpen}>
@@ -749,7 +763,7 @@ function FilterBar({
   );
 }
 
-function TaskCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
+function TaskCard({ task, onToggle, onOpenDetails }: { task: Task; onToggle: () => void; onOpenDetails: () => void }) {
   const due = task.due_at ? new Date(task.due_at) : null;
   const hoursLeft = due ? (due.getTime() - Date.now()) / 36e5 : Infinity;
   const isOverdue = !task.done && due !== null && due.getTime() < Date.now();
@@ -758,8 +772,9 @@ function TaskCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
 
   return (
     <article
+      onClick={onOpenDetails}
       className={cn(
-        "board-sm relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 p-4 sm:p-5 transition-all",
+        "board-sm relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 p-4 sm:p-5 transition-all cursor-pointer hover:translate-y-[-1px]",
         task.done && "opacity-60 bg-muted/20",
         isOverdue &&
           !task.done &&
@@ -772,7 +787,7 @@ function TaskCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
       }
     >
       <button
-        onClick={onToggle}
+        onClick={(e) => { e.stopPropagation(); onToggle(); }}
         aria-label="Toggle complete"
         className={cn(
           "grid h-10 w-10 shrink-0 place-items-center rounded-lg border-2 border-ink transition-transform hover:scale-105",
@@ -835,6 +850,11 @@ function TaskCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
         >
           {due ? formatDue(due) : "No due date"}
         </p>
+        {task.description && (
+          <p className="mt-1 truncate text-xs text-muted-foreground">
+            {task.description.length > 80 ? task.description.slice(0, 80) + "…" : task.description}
+          </p>
+        )}
       </div>
 
       {due && (
@@ -856,31 +876,93 @@ function TaskCard({ task, onToggle }: { task: Task; onToggle: () => void }) {
   );
 }
 
+function TaskDetailsDialog({
+  task,
+  open,
+  onOpenChange,
+}: {
+  task: Task | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  if (!task) return null;
+  const due = task.due_at ? new Date(task.due_at) : null;
+  const courseColor = getCourseColor(task.course_code);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="board max-w-lg gap-0 border-2 p-0 shadow-[6px_6px_0_0_var(--color-ink)]">
+        <DialogHeader className="border-b-2 border-ink px-6 py-4">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <span
+              className="inline-flex items-center rounded-md border-2 border-ink px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]"
+              style={{ background: courseColor }}
+            >
+              {task.course_code || "MISC"}
+            </span>
+            {task.isBeadleTask ? (
+              <span className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-blue-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]">
+                <CheckCircle2 className="h-3 w-3" strokeWidth={3} /> Beadle verified
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-purple-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]">
+                <User className="h-3 w-3" strokeWidth={2.5} /> Personal
+              </span>
+            )}
+          </div>
+          <DialogTitle className="text-xl font-bold">{task.title}</DialogTitle>
+          {due && (
+            <p className="mt-1 text-sm font-medium text-muted-foreground">
+              Due: {due.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year: "numeric" })} at{" "}
+              {due.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+            </p>
+          )}
+        </DialogHeader>
+        <div className="px-6 py-5">
+          {task.description ? (
+            <div className="prose prose-sm max-w-none [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-3 [&_h2]:mb-1.5 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mt-2 [&_h3]:mb-1 [&_p]:text-sm [&_p]:leading-relaxed [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-2 [&_li]:text-sm [&_li]:mb-0.5 [&_a]:text-[var(--marker-blue)] [&_a]:underline [&_code]:rounded [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-xs [&_code]:font-mono [&_pre]:rounded-md [&_pre]:border-2 [&_pre]:border-ink [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:mb-3 [&_blockquote]:border-l-4 [&_blockquote]:border-[var(--marker-blue)] [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_strong]:font-bold [&_em]:italic [&_hr]:border-ink [&_hr]:my-4">
+              <Markdown remarkPlugins={[remarkGfm]}>{task.description}</Markdown>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">No description provided.</p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AddDeadlineDialog({
   open,
   onOpenChange,
   courseCodes,
+  isBeadle,
   onAdd,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   courseCodes: string[];
-  onAdd: (input: { title: string; course_code: string; due_at: string }) => void;
+  isBeadle?: boolean;
+  onAdd: (input: { title: string; description: string; course_code: string; due_at: string; is_personal: boolean }) => void;
 }) {
   const [course, setCourse] = useState("");
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("23:59");
+  const [isPersonal, setIsPersonal] = useState(false);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !date) return;
     const due_at = new Date(`${date}T${time}`).toISOString();
-    onAdd({ course_code: course, title, due_at });
+    onAdd({ course_code: course, title, description, due_at, is_personal: isBeadle ? isPersonal : false });
     setTitle("");
+    setDescription("");
     setDate("");
     setCourse("");
     setTime("23:59");
+    setIsPersonal(false);
   };
 
   return (
@@ -915,6 +997,17 @@ function AddDeadlineDialog({
               required
             />
           </div>
+          <div className="grid gap-2">
+            <Label className="text-xs font-bold uppercase tracking-wider">Description</Label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Add details, instructions, or links… (Markdown supported)"
+              rows={4}
+              className="w-full rounded-md border-2 border-ink bg-background px-3 py-2 text-sm font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y"
+            />
+            <p className="text-[10px] text-muted-foreground">Supports **bold**, *italic*, lists, links, and more.</p>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
               <Label className="text-xs font-bold uppercase tracking-wider">Due Date</Label>
@@ -936,6 +1029,44 @@ function AddDeadlineDialog({
               />
             </div>
           </div>
+          {isBeadle && (
+            <div className="grid gap-2">
+              <Label className="text-xs font-bold uppercase tracking-wider">Task Type</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPersonal(false)}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md border-2 border-ink px-3 py-2.5 text-sm font-semibold transition-all",
+                    !isPersonal
+                      ? "bg-blue-600 text-white shadow-[3px_3px_0_0_var(--color-ink)]"
+                      : "bg-card text-foreground hover:bg-secondary",
+                  )}
+                >
+                  <CheckCircle2 className="h-4 w-4" strokeWidth={2.5} />
+                  <span className="text-left leading-tight">Beadle Verified</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPersonal(true)}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md border-2 border-ink px-3 py-2.5 text-sm font-semibold transition-all",
+                    isPersonal
+                      ? "bg-purple-600 text-white shadow-[3px_3px_0_0_var(--color-ink)]"
+                      : "bg-card text-foreground hover:bg-secondary",
+                  )}
+                >
+                  <User className="h-4 w-4" strokeWidth={2.5} />
+                  <span className="text-left leading-tight">Personal</span>
+                </button>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                {isPersonal
+                  ? "Only you will see this task."
+                  : "All block members will see this task."}
+              </p>
+            </div>
+          )}
           <DialogFooter className="gap-2 pt-2">
             <Button
               type="button"
@@ -1015,9 +1146,9 @@ function CanvasSyncButton({ blockId }: { blockId: string }) {
           onClick={handleSync}
           disabled={status === "loading"}
           className={cn(
-            "flex w-full items-center justify-center gap-2 rounded-md border-2 border-ink px-4 py-2 text-sm font-bold shadow-[3px_3px_0_0_var(--color-ink)] transition-all hover:translate-y-[-1px] hover:shadow-[4px_4px_0_0_var(--color-ink)] disabled:pointer-events-none disabled:opacity-60",
+            "board-sm flex w-full items-center justify-center gap-2 px-4 py-2 text-sm font-bold transition-transform hover:translate-y-[-1px] disabled:pointer-events-none disabled:opacity-60",
             status === "success"
-              ? "bg-[var(--marker-green)] text-white"
+              ? "!bg-[var(--marker-green)] text-white"
               : "bg-card text-foreground",
           )}
         >
@@ -1225,13 +1356,13 @@ function OnboardingGate({
                 placeholder="e.g. My Personal Space"
                 className="h-11 border-2 border-ink font-semibold"
               />
-              <Button
+              <button
                 onClick={handleCreatePersonal}
                 disabled={createBlock.isPending || joinBlock.isPending}
-                className="h-11 w-full gap-2 rounded-lg border-2 border-ink bg-purple-600 font-bold text-white shadow-[3px_3px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:bg-purple-700 hover:shadow-[4px_4px_0_0_var(--color-ink)] active:translate-y-[2px] disabled:opacity-70 disabled:pointer-events-none"
+                className="board-sm flex h-11 w-full items-center justify-center gap-2 font-bold text-white !bg-purple-600 transition-transform hover:translate-y-[-1px] disabled:opacity-70"
               >
                 {createBlock.isPending ? "Creating..." : "Create Personal Board"}
-              </Button>
+              </button>
             </div>
           </div>
 
@@ -1251,13 +1382,13 @@ function OnboardingGate({
                 className="h-11 border-2 border-ink text-center text-base font-bold tracking-widest"
                 maxLength={6}
               />
-              <Button
+              <button
                 onClick={handleJoin}
                 disabled={joinBlock.isPending || createBlock.isPending}
-                className="h-11 w-full gap-2 rounded-lg border-2 border-ink bg-[var(--marker-blue)] font-bold text-white shadow-[3px_3px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:bg-[var(--marker-blue)] hover:shadow-[4px_4px_0_0_var(--color-ink)] active:translate-y-[2px] disabled:opacity-70 disabled:pointer-events-none"
+                className="board-sm flex h-11 w-full items-center justify-center gap-2 font-bold text-white !bg-[var(--marker-blue)] transition-transform hover:translate-y-[-1px] disabled:opacity-70"
               >
                 {joinBlock.isPending ? "Joining..." : "Join Block"}
-              </Button>
+              </button>
             </div>
           </div>
 
@@ -1276,13 +1407,13 @@ function OnboardingGate({
                 placeholder="e.g. Block A1 — Freshmen"
                 className="h-11 border-2 border-ink font-semibold"
               />
-              <Button
+              <button
                 onClick={handleCreate}
                 disabled={createBlock.isPending || joinBlock.isPending}
-                className="h-11 w-full gap-2 rounded-lg border-2 border-ink bg-[var(--marker-green)] font-bold text-white shadow-[3px_3px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:bg-[var(--marker-green)] hover:shadow-[4px_4px_0_0_var(--color-ink)] active:translate-y-[2px] disabled:opacity-70 disabled:pointer-events-none"
+                className="board-sm flex h-11 w-full items-center justify-center gap-2 font-bold text-white !bg-[var(--marker-green)] transition-transform hover:translate-y-[-1px] disabled:opacity-70"
               >
                 {createBlock.isPending ? "Creating..." : "Create Class Block"}
-              </Button>
+              </button>
             </div>
           </div>
         </div>

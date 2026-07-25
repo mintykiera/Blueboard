@@ -128,14 +128,12 @@ export function QuickLinks({ blockId, role }: { blockId: string; role: string })
         {role === "beadle" && (
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-md hover:bg-secondary"
+              <button
+                className="board-sm grid h-8 w-8 place-items-center transition-transform hover:translate-y-[-1px]"
                 aria-label="Add Link"
               >
                 <Plus className="h-4 w-4" />
-              </Button>
+              </button>
             </DialogTrigger>
             <DialogContent className="board max-w-sm gap-0 border-2 p-0 shadow-[6px_6px_0_0_var(--color-ink)]">
               <DialogHeader className="border-b-2 border-ink px-6 py-4">
@@ -163,21 +161,20 @@ export function QuickLinks({ blockId, role }: { blockId: string; role: string })
                   />
                 </div>
                 <DialogFooter className="gap-2 pt-2">
-                  <Button
+                  <button
                     type="button"
-                    variant="ghost"
                     onClick={() => setIsAddOpen(false)}
-                    className="rounded-md border-2 border-ink font-semibold hover:bg-secondary"
+                    className="board-sm px-4 py-2 text-sm font-semibold transition-transform hover:translate-y-[-1px]"
                   >
                     Cancel
-                  </Button>
-                  <Button
+                  </button>
+                  <button
                     type="submit"
                     disabled={addMutation.isPending || !newTitle.trim() || !newUrl.trim()}
-                    className="rounded-md border-2 border-ink bg-[var(--marker-blue)] font-bold text-white shadow-[3px_3px_0_0_var(--color-ink)] hover:bg-[var(--marker-blue)] hover:shadow-[4px_4px_0_0_var(--color-ink)]"
+                    className="board-sm px-4 py-2 text-sm font-bold !bg-[var(--marker-blue)] text-white transition-transform hover:translate-y-[-1px] disabled:opacity-50"
                   >
                     Add Link
-                  </Button>
+                  </button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -195,7 +192,7 @@ export function QuickLinks({ blockId, role }: { blockId: string; role: string })
         {links.map((l, i) => (
           <div
             key={l.id}
-            className="group flex items-center justify-between gap-2 rounded-md border-2 border-ink bg-card p-3 shadow-[3px_3px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:shadow-[4px_4px_0_0_var(--color-ink)]"
+            className="board-sm group flex items-center justify-between gap-2 p-3 transition-transform hover:translate-y-[-1px]"
           >
             <a
               href={l.url}
@@ -216,14 +213,12 @@ export function QuickLinks({ blockId, role }: { blockId: string; role: string })
             {role === "beadle" && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0 rounded-md border-2 border-transparent p-0 hover:border-ink hover:bg-secondary"
+                  <button
+                    className="board-sm grid h-7 w-7 shrink-0 place-items-center transition-transform hover:translate-y-[-1px]"
                     aria-label="Link actions"
                   >
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
+                    <MoreVertical className="h-3.5 w-3.5" />
+                  </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="end"
@@ -281,21 +276,20 @@ export function QuickLinks({ blockId, role }: { blockId: string; role: string })
               />
             </div>
             <DialogFooter className="gap-2 pt-2">
-              <Button
+              <button
                 type="button"
-                variant="ghost"
                 onClick={() => setEditingLink(null)}
-                className="rounded-md border-2 border-ink font-semibold hover:bg-secondary"
+                className="board-sm px-4 py-2 text-sm font-semibold transition-transform hover:translate-y-[-1px]"
               >
                 Cancel
-              </Button>
-              <Button
+              </button>
+              <button
                 type="submit"
                 disabled={updateMutation.isPending || !editTitle.trim() || !editUrl.trim()}
-                className="rounded-md border-2 border-ink bg-[var(--marker-blue)] font-bold text-white shadow-[3px_3px_0_0_var(--color-ink)] hover:bg-[var(--marker-blue)] hover:shadow-[4px_4px_0_0_var(--color-ink)]"
+                className="board-sm px-4 py-2 text-sm font-bold !bg-[var(--marker-blue)] text-white transition-transform hover:translate-y-[-1px] disabled:opacity-50"
               >
                 Save Changes
-              </Button>
+              </button>
             </DialogFooter>
           </form>
         </DialogContent>
