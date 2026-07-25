@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import {
   ArrowLeft,
   BookOpen,
@@ -12,6 +14,8 @@ import {
   MoreVertical,
   Edit2,
   Trash2,
+  Users,
+  MoreHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
@@ -26,6 +30,7 @@ export type BlockOption = {
   id: string;
   name: string;
   role: string;
+  created_by?: string;
 };
 
 export function UserPill() {
@@ -43,7 +48,7 @@ export function UserPill() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="hidden items-center gap-2 rounded-full border-2 border-ink bg-card py-1 pl-1 pr-3 shadow-[2px_2px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:shadow-[3px_3px_0_0_var(--color-ink)] sm:inline-flex">
+        <button className="board-sm inline-flex items-center gap-2 py-1 pl-1 pr-2 sm:pr-3 transition-transform hover:translate-y-[-1px]">
           {profile?.avatar_url ? (
             <img
               src={profile.avatar_url}
@@ -58,8 +63,8 @@ export function UserPill() {
               {initials}
             </div>
           )}
-          <span className="max-w-[160px] truncate text-xs font-semibold">{displayEmail}</span>
-          <ChevronDown className="h-3 w-3 text-muted-foreground" />
+          <span className="hidden sm:inline max-w-[160px] truncate text-xs font-semibold">{displayEmail}</span>
+          <ChevronDown className="hidden sm:block h-3 w-3 text-muted-foreground" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -243,7 +248,7 @@ function BlockActionsMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="grid h-9 w-9 place-items-center rounded-lg border-2 border-ink bg-card shadow-[2px_2px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px]"
+          className="board-sm grid h-9 w-9 place-items-center transition-transform hover:translate-y-[-1px]"
           aria-label="Block Actions"
           title="Block Settings"
         >
@@ -304,6 +309,162 @@ function BlockActionsMenu({
             Delete Block
           </DropdownMenuItem>
         )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function MembersDropdown({ currentBlock }: { currentBlock?: BlockOption }) {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+
+  const isCreator = profile?.id === currentBlock?.created_by;
+  const isBeadle = currentBlock?.role === "beadle";
+
+  const { data: members = [] } = useQuery({
+    queryKey: ["block-members-full", currentBlock?.id],
+    queryFn: async () => {
+      if (!currentBlock?.id) return [];
+      const { data, error } = await supabase
+        .from("block_members")
+        .select("id, profile_id, role, profiles(id, full_name, email, avatar_url)")
+        .eq("block_id", currentBlock.id);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!currentBlock?.id,
+  });
+
+  const updateRoleMutation = useMutation({
+    mutationFn: async ({ memberId, role }: { memberId: string; role: string }) => {
+      const { error } = await (supabase.from("block_members") as any)
+        .update({ role })
+        .eq("id", memberId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["block-members-full"] });
+      queryClient.invalidateQueries({ queryKey: ["block-members"] });
+    },
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: async (memberId: string) => {
+      const { error } = await supabase.from("block_members").delete().eq("id", memberId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["block-members-full"] });
+      queryClient.invalidateQueries({ queryKey: ["block-members"] });
+    },
+  });
+
+  if (!currentBlock) return null;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="board-sm inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-sm font-semibold transition-transform hover:translate-y-[-1px]">
+          <Users className="h-4 w-4" strokeWidth={2.5} />
+          <span className="hidden sm:inline">Members</span>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        className="w-72 max-w-[90vw] rounded-md border-2 border-ink bg-card p-1 shadow-[4px_4px_0_0_var(--color-ink)] max-h-[60vh] overflow-y-auto"
+        align="end"
+        sideOffset={6}
+      >
+        <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          Board Members ({members.length})
+        </div>
+        {members.map((m: any) => {
+          const prof = m.profiles;
+          const targetIsBeadle = m.role === "beadle";
+          const canManage = isCreator || (isBeadle && !targetIsBeadle);
+
+          return (
+            <div
+              key={m.id}
+              className="flex items-center justify-between rounded-md px-3 py-2 text-sm focus:bg-secondary"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-ink text-[10px] font-bold text-white bg-[var(--marker-blue)] overflow-hidden">
+                  {prof?.avatar_url ? (
+                    <img src={prof.avatar_url} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    prof?.full_name?.[0]?.toUpperCase() || prof?.email?.[0]?.toUpperCase() || "?"
+                  )}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="truncate font-semibold text-foreground leading-tight">
+                    {prof?.full_name || "Unknown"} {prof?.id === profile?.id && "(You)"}
+                  </span>
+                  <span className="truncate text-[10px] text-muted-foreground leading-tight">
+                    {prof?.email}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {targetIsBeadle && (
+                  <span className="rounded border border-ink bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white shadow-[1px_1px_0_0_var(--color-ink)]">
+                    Beadle
+                  </span>
+                )}
+
+                {prof?.id !== profile?.id && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="grid h-6 w-6 place-items-center rounded bg-secondary hover:bg-muted transition-colors">
+                        <MoreHorizontal className="h-3.5 w-3.5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="w-48 rounded-md border-2 border-ink bg-card shadow-[4px_4px_0_0_var(--color-ink)]"
+                    >
+                      {!targetIsBeadle && canManage && (
+                        <DropdownMenuItem
+                          onSelect={() =>
+                            updateRoleMutation.mutate({ memberId: m.id, role: "beadle" })
+                          }
+                          className="cursor-pointer font-semibold"
+                        >
+                          Make Beadle
+                        </DropdownMenuItem>
+                      )}
+                      {targetIsBeadle && canManage && (
+                        <DropdownMenuItem
+                          onSelect={() =>
+                            updateRoleMutation.mutate({ memberId: m.id, role: "student" })
+                          }
+                          className="cursor-pointer font-semibold"
+                        >
+                          Remove as Beadle
+                        </DropdownMenuItem>
+                      )}
+
+                      {canManage && (
+                        <DropdownMenuItem
+                          onSelect={() => removeMemberMutation.mutate(m.id)}
+                          className="cursor-pointer font-semibold text-destructive focus:bg-destructive/10 focus:text-destructive"
+                        >
+                          Remove from Board
+                        </DropdownMenuItem>
+                      )}
+
+                      {!canManage && (
+                        <div className="px-3 py-2 text-xs text-muted-foreground italic">
+                          No actions available
+                        </div>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -376,22 +537,24 @@ export function Header({
           {isCalendarPage && (
             <a
               href="/"
-              className="h-10 items-center gap-2 rounded-lg border-2 border-ink bg-secondary px-3 sm:px-4 font-bold text-foreground shadow-[3px_3px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:shadow-[4px_4px_0_0_var(--color-ink)] inline-flex"
+              className="board-sm inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-sm font-bold bg-secondary transition-transform hover:translate-y-[-1px]"
             >
               <ArrowLeft className="h-4 w-4" strokeWidth={2.5} />{" "}
               <span className="hidden sm:inline">Back</span>
             </a>
           )}
 
+          {activeBlock && <MembersDropdown currentBlock={activeBlock} />}
+
           <a
             href="/calendar"
-            className="hidden h-10 items-center gap-2 rounded-lg border-2 border-ink bg-card px-4 font-semibold text-foreground shadow-[3px_3px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:shadow-[4px_4px_0_0_var(--color-ink)] sm:inline-flex"
+            className="board-sm hidden sm:inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-transform hover:translate-y-[-1px]"
           >
             <CalendarIcon className="h-4 w-4" strokeWidth={2.5} /> Calendar
           </a>
           <a
             href="/calendar"
-            className="grid h-10 w-10 place-items-center rounded-lg border-2 border-ink bg-card text-foreground shadow-[3px_3px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:shadow-[4px_4px_0_0_var(--color-ink)] sm:hidden"
+            className="board-sm grid h-9 w-9 sm:hidden place-items-center transition-transform hover:translate-y-[-1px]"
             aria-label="Calendar"
           >
             <CalendarIcon className="h-4 w-4" strokeWidth={2.5} />
@@ -399,24 +562,23 @@ export function Header({
 
           {onAdd && (
             <>
-              <Button
+              <button
                 onClick={onAdd}
-                className="hidden h-10 gap-2 rounded-lg border-2 border-ink bg-[var(--marker-blue)] px-4 font-semibold text-white shadow-[3px_3px_0_0_var(--color-ink)] transition-transform hover:translate-y-[-1px] hover:bg-[var(--marker-blue)] hover:shadow-[4px_4px_0_0_var(--color-ink)] sm:inline-flex"
+                className="board-sm hidden sm:inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold !bg-[var(--marker-blue)] text-white transition-transform hover:translate-y-[-1px] hover:!bg-[var(--marker-blue)]"
               >
                 <Plus className="h-4 w-4" strokeWidth={2.5} /> Add Deadline
-              </Button>
-              <Button
+              </button>
+              <button
                 onClick={onAdd}
-                size="icon"
-                className="h-10 w-10 rounded-lg border-2 border-ink bg-[var(--marker-blue)] text-white shadow-[3px_3px_0_0_var(--color-ink)] hover:bg-[var(--marker-blue)] sm:hidden"
+                className="board-sm grid h-9 w-9 sm:hidden place-items-center !bg-[var(--marker-blue)] text-white transition-transform hover:translate-y-[-1px] hover:!bg-[var(--marker-blue)]"
               >
                 <Plus className="h-5 w-5" strokeWidth={2.5} />
-              </Button>
+              </button>
             </>
           )}
           <UserPill />
           <button
-            className="grid h-10 w-10 place-items-center rounded-lg border-2 border-ink bg-card md:hidden"
+            className="board-sm grid h-9 w-9 md:hidden place-items-center transition-transform hover:translate-y-[-1px]"
             onClick={() => setMobileOpen((v) => !v)}
             aria-label="Menu"
           >

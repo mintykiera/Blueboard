@@ -141,6 +141,7 @@ function CalendarPage() {
           id: m.blocks.id,
           name: m.blocks.name,
           role: m.role,
+          created_by: m.blocks.created_by,
         }));
 
       list.sort((a: any, b: any) =>

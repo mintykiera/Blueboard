@@ -250,6 +250,7 @@ function Blueboard() {
           role: m.role,
           invite_code: m.blocks.invite_code,
           canvas_ics_url: m.blocks.canvas_ics_url,
+          created_by: m.blocks.created_by,
         }));
 
       list.sort((a: any, b: any) =>
