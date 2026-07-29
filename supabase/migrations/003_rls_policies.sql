@@ -144,6 +144,16 @@ create policy "block_members_delete_beadle"
     public.is_beadle_of(block_id)
   );
 
+create policy "block_members_update_beadle"
+  on public.block_members for update
+  to authenticated
+  using (
+    public.is_beadle_of(block_id)
+  )
+  with check (
+    public.is_beadle_of(block_id)
+  );
+
 create policy "tasks_select_own_university"
   on public.tasks for select
   to authenticated
