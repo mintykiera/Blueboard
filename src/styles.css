@@ -148,3 +148,17 @@
   background-repeat: no-repeat;
   background-size: 100% 100%;
 }
+@utility tactile {
+  cursor: pointer;
+  transition: transform 250ms ease-out, box-shadow 250ms ease-out;
+  will-change: transform, box-shadow;
+  &:hover {
+    transform: translate(1px, 1px);
+    box-shadow: 2px 2px 0 0 var(--color-ink);
+  }
+  &:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 0 var(--color-ink);
+  }
+}
+

@@ -381,10 +381,10 @@ create policy "tasks_update_beadle"
   using (public.is_beadle_of(block_id))
   with check (public.is_beadle_of(block_id));
 
-create policy "tasks_delete_beadle"
+create policy "tasks_delete_beadle_or_creator"
   on public.tasks for delete
   to authenticated
-  using (public.is_beadle_of(block_id));
+  using (public.is_beadle_of(block_id) or created_by = auth.uid());
 
 create policy "utc_select_own"
   on public.user_task_completions for select
@@ -476,8 +476,15 @@ create policy "block_links_delete_beadle"
   using (public.is_beadle_of(block_id));
 
 insert into public.universities (name, short_code, email_domain, theme_color) values
-  ('Ateneo de Manila University',    'ADMU', 'ateneo.edu',   '#1E6FBA'),
-  ('De La Salle University',         'DLSU', 'dlsu.edu.ph',  '#00703C'),
-  ('University of the Philippines',  'UP',   'up.edu.ph',    '#7B1113'),
-  ('University of Santo Tomas',      'UST',  'ust.edu.ph',   '#FFD700')
-on conflict (email_domain) do nothing;
+  ('Ateneo de Manila University',           'ADMU',   'student.ateneo.edu',   '#1E6FBA'),
+  ('De La Salle University',                'DLSU',   'dlsu.edu.ph',           '#00703C'),
+  ('FEU Tech',                              'FEUTECH','fit.edu.ph',           '#006400'),
+  ('FEU Manila',                            'FEU',    'feu.edu.ph',           '#004D25'),
+  ('University of Santo Tomas',             'UST',    'ust.edu.ph',          '#FFD700'),
+  ('University of Asia and the Pacific',    'UA&P',   'uap.asia',             '#002B49'),
+  ('CIIT College of Arts and Technology',   'CIIT',   'ciit.edu.ph',            '#E31837'),
+  ('Mapúa University',                      'MAPUA',  'mymail.mapua.edu.ph',  '#990000')
+on conflict (email_domain) do update set
+  name = excluded.name,
+  short_code = excluded.short_code,
+  theme_color = excluded.theme_color;

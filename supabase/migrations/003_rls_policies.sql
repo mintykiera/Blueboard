@@ -182,11 +182,11 @@ create policy "tasks_update_beadle"
     public.is_beadle_of(block_id)
   );
 
-create policy "tasks_delete_beadle"
+create policy "tasks_delete_beadle_or_creator"
   on public.tasks for delete
   to authenticated
   using (
-    public.is_beadle_of(block_id)
+    public.is_beadle_of(block_id) or created_by = auth.uid()
   );
 
 create policy "utc_select_own"

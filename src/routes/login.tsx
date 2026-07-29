@@ -1,7 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, Mail } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -21,7 +29,29 @@ function LoginPage() {
   const { signInWithGoogle } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [showAccessDeniedModal, setShowAccessDeniedModal] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const hash = window.location.hash;
+    const search = window.location.search;
+    const combined = `${hash}&${search}`;
+
+    if (
+      combined.includes("error") ||
+      combined.includes("denied") ||
+      combined.includes("unapproved")
+    ) {
+      const params = new URLSearchParams(hash.replace(/^#/, "") || search.replace(/^\?/, ""));
+      const errorDesc = params.get("error_description") || params.get("error") || "";
+
+      if (errorDesc || combined.includes("error")) {
+        setShowAccessDeniedModal(true);
+        // Clear the URL hash & query string so it doesn't persist on page refresh
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    }
+  }, []);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!cardRef.current) return;
@@ -68,10 +98,12 @@ function LoginPage() {
 
         <div className="px-8 pb-8 pt-10 sm:px-10 sm:pb-10 sm:pt-12">
           <div className="flex items-center justify-center gap-3">
-            <div
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border-2 border-ink bg-white shadow-[3px_3px_0_0_var(--color-ink)]"
-            >
-              <img src="/blueboard-removebg-preview.png" alt="Blueboard" className="h-6 w-6 object-contain" />
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border-2 border-ink bg-white shadow-[3px_3px_0_0_var(--color-ink)]">
+              <img
+                src="/blueboard-removebg-preview.png"
+                alt="Blueboard"
+                className="h-6 w-6 object-contain"
+              />
             </div>
             <h1 className="marker text-4xl tracking-tight">Blueboard</h1>
           </div>
@@ -113,7 +145,7 @@ function LoginPage() {
             id="login-google-button"
             onClick={handleLogin}
             disabled={isLoading}
-            className="mt-6 flex w-full items-center justify-center gap-3 rounded-lg border-2 border-ink bg-card px-6 py-3.5 text-sm font-bold shadow-[4px_4px_0_0_var(--color-ink)] transition-all hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)] disabled:pointer-events-none disabled:opacity-60"
+            className="mt-6 flex w-full items-center justify-center gap-3 rounded-lg border-2 border-ink bg-card px-6 py-3.5 text-sm font-bold shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)] disabled:pointer-events-none disabled:opacity-60"
           >
             {isLoading ? (
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-ink border-t-transparent" />
@@ -168,6 +200,114 @@ function LoginPage() {
           </div>
         </div>
       </div>
+
+      <Dialog open={showAccessDeniedModal} onOpenChange={setShowAccessDeniedModal}>
+        <DialogContent className="board max-w-md gap-0 border-2 border-ink p-0 shadow-[6px_6px_0_0_var(--color-ink)] bg-background">
+          <DialogHeader className="border-b-2 border-ink bg-rose-50 dark:bg-rose-950/40 px-6 py-4">
+            <DialogTitle className="marker flex items-center gap-2 text-2xl text-[var(--marker-red)]">
+              <AlertTriangle
+                className="h-6 w-6 shrink-0 text-[var(--marker-red)]"
+                strokeWidth={2.5}
+              />
+              Access Denied
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 px-6 py-5">
+            <p className="text-sm font-semibold leading-relaxed text-foreground">
+              Personal{" "}
+              <code className="rounded border border-ink bg-rose-100 dark:bg-rose-900/40 px-1.5 py-0.5 font-bold text-rose-700 dark:text-rose-300">
+                @gmail.com
+              </code>{" "}
+              or non-university accounts are strictly not allowed on Blueboard.
+            </p>
+
+            <p className="text-xs text-muted-foreground font-medium">
+              Please sign in using an official email account from one of our supported universities:
+            </p>
+
+            <div className="space-y-2 rounded-lg border-2 border-ink bg-card p-3 shadow-[2px_2px_0_0_var(--color-ink)]">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-ink/20 pb-1 mb-2">
+                Approved University Email Formats
+              </div>
+              <ul className="space-y-1.5 text-xs">
+                <li className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-foreground">Ateneo:</span>
+                  <code className="rounded border border-ink bg-secondary px-1.5 py-0.5 font-mono text-[11px]">
+                    *@student.ateneo.edu
+                  </code>
+                </li>
+                <li className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-foreground">DLSU:</span>
+                  <code className="rounded border border-ink bg-secondary px-1.5 py-0.5 font-mono text-[11px]">
+                    *@dlsu.edu.ph
+                  </code>
+                </li>
+                <li className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-foreground">FEU Tech:</span>
+                  <code className="rounded border border-ink bg-secondary px-1.5 py-0.5 font-mono text-[11px]">
+                    *@fit.edu.ph
+                  </code>
+                </li>
+                <li className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-foreground">FEU Manila:</span>
+                  <code className="rounded border border-ink bg-secondary px-1.5 py-0.5 font-mono text-[11px]">
+                    *@feu.edu.ph
+                  </code>
+                </li>
+                <li className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-foreground">UST:</span>
+                  <code className="rounded border border-ink bg-secondary px-1.5 py-0.5 font-mono text-[11px]">
+                    *@ust.edu.ph
+                  </code>
+                </li>
+                <li className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-foreground">UA&P:</span>
+                  <code className="rounded border border-ink bg-secondary px-1.5 py-0.5 font-mono text-[11px]">
+                    *@uap.asia
+                  </code>
+                </li>
+                <li className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-foreground">CIIT:</span>
+                  <code className="rounded border border-ink bg-secondary px-1.5 py-0.5 font-mono text-[11px]">
+                    *@ciit.edu.ph
+                  </code>
+                </li>
+                <li className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-foreground">Mapúa:</span>
+                  <code className="rounded border border-ink bg-secondary px-1.5 py-0.5 font-mono text-[11px]">
+                    *@mymail.mapua.edu.ph
+                  </code>
+                </li>
+              </ul>
+            </div>
+
+            <div className="rounded-lg border-2 border-ink bg-[var(--marker-yellow)] p-3 text-xs font-semibold text-ink shadow-[2px_2px_0_0_var(--color-ink)] flex items-start gap-2">
+              <Mail className="h-4 w-4 shrink-0 mt-0.5" strokeWidth={2.5} />
+              <div>
+                Want your university added to the Blueboard?{" "}
+                <a
+                  href="mailto:kieraesque@gmail.com"
+                  className="font-bold underline decoration-2 hover:text-blue-900 cursor-pointer"
+                >
+                  Email me, kieraesque@gmail.com!
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="border-t-2 border-ink px-6 py-4 bg-muted/20">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowAccessDeniedModal(false)}
+              className="w-full py-3 text-sm font-bold"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

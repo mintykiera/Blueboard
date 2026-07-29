@@ -59,6 +59,14 @@ import {
   LeaveBlockDialog,
   DeleteBlockDialog,
 } from "@/components/dashboard/RenameBlockDialog";
+import { DeleteTaskDialog } from "@/components/dashboard/DeleteTaskDialog";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { Trash2, Eye, CheckSquare } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -153,6 +161,17 @@ function Blueboard() {
   const [leaveData, setLeaveData] = useState<{ id: string; name: string } | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteData, setDeleteData] = useState<{ id: string; name: string } | null>(null);
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      const { error } = await supabase.from("tasks").delete().eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks", blockId] });
+    },
+  });
 
   const renameBlockMutation = useMutation({
     mutationFn: async ({ id, name }: { id: string; name: string }) => {
@@ -391,7 +410,13 @@ function Blueboard() {
   });
 
   const addTaskMutation = useMutation({
-    mutationFn: async (input: { title: string; description: string; course_code: string; due_at: string; is_personal: boolean }) => {
+    mutationFn: async (input: {
+      title: string;
+      description: string;
+      course_code: string;
+      due_at: string;
+      is_personal: boolean;
+    }) => {
       if (!blockId || !profile?.id) throw new Error("Not ready");
       const { error } = await supabase.from("tasks").insert({
         block_id: blockId,
@@ -555,7 +580,14 @@ function Blueboard() {
                 </div>
               )}
               {filtered.map((t) => (
-                <TaskCard key={t.id} task={t} onToggle={() => toggle(t.id)} onOpenDetails={() => setDetailTask(t)} />
+                <TaskCard
+                  key={t.id}
+                  task={t}
+                  onToggle={() => toggle(t.id)}
+                  onOpenDetails={() => setDetailTask(t)}
+                  onDeleteTask={() => setTaskToDelete(t)}
+                  canDelete={currentBlock?.role === "beadle" || t.created_by === profile?.id}
+                />
               ))}
             </div>
           </section>
@@ -587,7 +619,22 @@ function Blueboard() {
       <TaskDetailsDialog
         task={detailTask}
         open={!!detailTask}
-        onOpenChange={(v) => { if (!v) setDetailTask(null); }}
+        onOpenChange={(v) => {
+          if (!v) setDetailTask(null);
+        }}
+      />
+
+      <DeleteTaskDialog
+        open={!!taskToDelete}
+        onOpenChange={(v) => {
+          if (!v) setTaskToDelete(null);
+        }}
+        taskTitle={taskToDelete?.title || ""}
+        onConfirm={() => {
+          if (taskToDelete) {
+            deleteTaskMutation.mutate(taskToDelete.id);
+          }
+        }}
       />
 
       <Dialog open={joinOrCreateOpen} onOpenChange={setJoinOrCreateOpen}>
@@ -734,7 +781,7 @@ function FilterBar({
             key={i.id}
             onClick={() => setFilter(i.id)}
             className={cn(
-              "inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors",
+              "inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold cursor-pointer transition-colors",
               active
                 ? "border-2 border-ink text-white shadow-[2px_2px_0_0_var(--color-ink)]"
                 : "text-foreground hover:bg-secondary",
@@ -763,7 +810,19 @@ function FilterBar({
   );
 }
 
-function TaskCard({ task, onToggle, onOpenDetails }: { task: Task; onToggle: () => void; onOpenDetails: () => void }) {
+function TaskCard({
+  task,
+  onToggle,
+  onOpenDetails,
+  onDeleteTask,
+  canDelete,
+}: {
+  task: Task;
+  onToggle: () => void;
+  onOpenDetails: () => void;
+  onDeleteTask?: () => void;
+  canDelete?: boolean;
+}) {
   const due = task.due_at ? new Date(task.due_at) : null;
   const hoursLeft = due ? (due.getTime() - Date.now()) / 36e5 : Infinity;
   const isOverdue = !task.done && due !== null && due.getTime() < Date.now();
@@ -771,108 +830,146 @@ function TaskCard({ task, onToggle, onOpenDetails }: { task: Task; onToggle: () 
   const courseColor = getCourseColor(task.course_code);
 
   return (
-    <article
-      onClick={onOpenDetails}
-      className={cn(
-        "board-sm relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 p-4 sm:p-5 transition-all cursor-pointer hover:translate-y-[-1px]",
-        task.done && "opacity-60 bg-muted/20",
-        isOverdue &&
-          !task.done &&
-          "bg-rose-50/60 dark:bg-rose-950/20 border-2 border-rose-600 shadow-[4px_4px_0_0_#E11D48]",
-      )}
-      style={
-        isUrgent && !isOverdue
-          ? { borderColor: "var(--marker-red)", boxShadow: "4px 4px 0 0 var(--marker-red)" }
-          : undefined
-      }
-    >
-      <button
-        onClick={(e) => { e.stopPropagation(); onToggle(); }}
-        aria-label="Toggle complete"
-        className={cn(
-          "grid h-10 w-10 shrink-0 place-items-center rounded-lg border-2 border-ink transition-transform hover:scale-105",
-          task.done ? "text-white" : "bg-card",
-        )}
-        style={task.done ? { background: "var(--marker-green)" } : undefined}
-      >
-        {task.done && <Check className="h-5 w-5" strokeWidth={3} />}
-      </button>
-
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            className="inline-flex items-center rounded-md border-2 border-ink px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]"
-            style={{ background: courseColor }}
-          >
-            {task.course_code || "MISC"}
-          </span>
-
-          {task.isBeadleTask ? (
-            <span
-              className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-blue-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]"
-              title="Official task assigned by a Beadle"
-            >
-              <CheckCircle2 className="h-3 w-3" strokeWidth={3} /> Beadle verified task
-            </span>
-          ) : (
-            <span
-              className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-purple-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]"
-              title="Private personal task created by you"
-            >
-              <User className="h-3 w-3" strokeWidth={2.5} /> Personal Task
-            </span>
-          )}
-
-          {isOverdue && (
-            <span className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-rose-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)] animate-pulse">
-              <AlertTriangle className="h-3 w-3" strokeWidth={2.5} /> OVERDUE
-            </span>
-          )}
-          {isUrgent && (
-            <span className="inline-flex items-center rounded-md border-2 border-ink bg-[var(--marker-red)] px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]">
-              URGENT
-            </span>
-          )}
-        </div>
-        <h3
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <article
+          onClick={onOpenDetails}
           className={cn(
-            "mt-2 truncate text-base font-bold sm:text-lg",
-            task.done && "line-through decoration-2 text-muted-foreground",
+            "board-sm relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 p-4 sm:p-5 shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]",
+            task.done && "opacity-60 bg-muted/20",
+            isOverdue &&
+              !task.done &&
+              "bg-rose-50/60 dark:bg-rose-950/20 border-2 border-rose-600 shadow-[4px_4px_0_0_#E11D48]",
           )}
+          style={
+            isUrgent && !isOverdue
+              ? { borderColor: "var(--marker-red)", boxShadow: "4px 4px 0 0 var(--marker-red)" }
+              : undefined
+          }
         >
-          {task.title}
-        </h3>
-        <p
-          className={cn(
-            "mt-0.5 text-xs font-medium sm:text-sm",
-            isOverdue ? "text-rose-600 font-bold dark:text-rose-400" : "text-muted-foreground",
-          )}
-        >
-          {due ? formatDue(due) : "No due date"}
-        </p>
-        {task.description && (
-          <p className="mt-1 truncate text-xs text-muted-foreground">
-            {task.description.length > 80 ? task.description.slice(0, 80) + "…" : task.description}
-          </p>
-        )}
-      </div>
-
-      {due && (
-        <div className="hidden shrink-0 sm:block">
-          <div
-            className="marker text-right text-2xl"
-            style={{
-              color: isOverdue ? "#E11D48" : isUrgent ? "var(--marker-red)" : "var(--marker-blue)",
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
             }}
+            aria-label="Toggle complete"
+            className={cn(
+              "grid h-10 w-10 shrink-0 place-items-center rounded-lg border-2 border-ink cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px]",
+              task.done ? "text-white" : "bg-card",
+            )}
+            style={task.done ? { background: "var(--marker-green)" } : undefined}
           >
-            {due.toLocaleDateString([], { day: "2-digit" })}
+            {task.done && <Check className="h-5 w-5" strokeWidth={3} />}
+          </button>
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className="inline-flex items-center rounded-md border-2 border-ink px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]"
+                style={{ background: courseColor }}
+              >
+                {task.course_code || "MISC"}
+              </span>
+
+              {task.isBeadleTask ? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-blue-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]"
+                  title="Official task assigned by a Beadle"
+                >
+                  <CheckCircle2 className="h-3 w-3" strokeWidth={3} /> Beadle verified task
+                </span>
+              ) : (
+                <span
+                  className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-purple-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]"
+                  title="Private personal task created by you"
+                >
+                  <User className="h-3 w-3" strokeWidth={2.5} /> Personal Task
+                </span>
+              )}
+
+              {isOverdue && (
+                <span className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-rose-600 px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)] animate-pulse">
+                  <AlertTriangle className="h-3 w-3" strokeWidth={2.5} /> OVERDUE
+                </span>
+              )}
+              {isUrgent && (
+                <span className="inline-flex items-center rounded-md border-2 border-ink bg-[var(--marker-red)] px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]">
+                  URGENT
+                </span>
+              )}
+            </div>
+            <h3
+              className={cn(
+                "mt-2 truncate text-base font-bold sm:text-lg",
+                task.done && "line-through decoration-2 text-muted-foreground",
+              )}
+            >
+              {task.title}
+            </h3>
+            <p
+              className={cn(
+                "mt-0.5 text-xs font-medium sm:text-sm",
+                isOverdue ? "text-rose-600 font-bold dark:text-rose-400" : "text-muted-foreground",
+              )}
+            >
+              {due ? formatDue(due) : "No due date"}
+            </p>
+            {task.description && (
+              <p className="mt-1 truncate text-xs text-muted-foreground">
+                {task.description.length > 80
+                  ? task.description.slice(0, 80) + "…"
+                  : task.description}
+              </p>
+            )}
           </div>
-          <div className="text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            {due.toLocaleDateString([], { month: "short" })}
-          </div>
-        </div>
-      )}
-    </article>
+
+          {due && (
+            <div className="hidden shrink-0 sm:block">
+              <div
+                className="marker text-right text-2xl"
+                style={{
+                  color: isOverdue
+                    ? "#E11D48"
+                    : isUrgent
+                      ? "var(--marker-red)"
+                      : "var(--marker-blue)",
+                }}
+              >
+                {due.toLocaleDateString([], { day: "2-digit" })}
+              </div>
+              <div className="text-right text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                {due.toLocaleDateString([], { month: "short" })}
+              </div>
+            </div>
+          )}
+        </article>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-48 rounded-md border-2 border-ink bg-card p-1 shadow-[4px_4px_0_0_var(--color-ink)]">
+        <ContextMenuItem
+          onSelect={onOpenDetails}
+          className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold focus:bg-secondary"
+        >
+          <Eye className="h-4 w-4 text-[var(--marker-blue)]" />
+          View Details
+        </ContextMenuItem>
+        <ContextMenuItem
+          onSelect={onToggle}
+          className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold focus:bg-secondary"
+        >
+          <CheckSquare className="h-4 w-4 text-[var(--marker-green)]" />
+          {task.done ? "Mark Incomplete" : "Mark Complete"}
+        </ContextMenuItem>
+        {canDelete && onDeleteTask && (
+          <ContextMenuItem
+            onSelect={onDeleteTask}
+            className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-destructive focus:bg-destructive/10 focus:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete Task
+          </ContextMenuItem>
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
@@ -913,8 +1010,14 @@ function TaskDetailsDialog({
           <DialogTitle className="text-xl font-bold">{task.title}</DialogTitle>
           {due && (
             <p className="mt-1 text-sm font-medium text-muted-foreground">
-              Due: {due.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year: "numeric" })} at{" "}
-              {due.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+              Due:{" "}
+              {due.toLocaleDateString([], {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}{" "}
+              at {due.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
             </p>
           )}
         </DialogHeader>
@@ -943,7 +1046,13 @@ function AddDeadlineDialog({
   onOpenChange: (v: boolean) => void;
   courseCodes: string[];
   isBeadle?: boolean;
-  onAdd: (input: { title: string; description: string; course_code: string; due_at: string; is_personal: boolean }) => void;
+  onAdd: (input: {
+    title: string;
+    description: string;
+    course_code: string;
+    due_at: string;
+    is_personal: boolean;
+  }) => void;
 }) {
   const [course, setCourse] = useState("");
   const [title, setTitle] = useState("");
@@ -956,7 +1065,13 @@ function AddDeadlineDialog({
     e.preventDefault();
     if (!title || !date) return;
     const due_at = new Date(`${date}T${time}`).toISOString();
-    onAdd({ course_code: course, title, description, due_at, is_personal: isBeadle ? isPersonal : false });
+    onAdd({
+      course_code: course,
+      title,
+      description,
+      due_at,
+      is_personal: isBeadle ? isPersonal : false,
+    });
     setTitle("");
     setDescription("");
     setDate("");
@@ -1006,7 +1121,9 @@ function AddDeadlineDialog({
               rows={4}
               className="w-full rounded-md border-2 border-ink bg-background px-3 py-2 text-sm font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y"
             />
-            <p className="text-[10px] text-muted-foreground">Supports **bold**, *italic*, lists, links, and more.</p>
+            <p className="text-[10px] text-muted-foreground">
+              Supports **bold**, *italic*, lists, links, and more.
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
@@ -1037,7 +1154,7 @@ function AddDeadlineDialog({
                   type="button"
                   onClick={() => setIsPersonal(false)}
                   className={cn(
-                    "flex items-center gap-2 rounded-md border-2 border-ink px-3 py-2.5 text-sm font-semibold transition-all",
+                    "flex items-center gap-2 rounded-md border-2 border-ink px-3 py-2.5 text-sm font-semibold cursor-pointer transition-all",
                     !isPersonal
                       ? "bg-blue-600 text-white shadow-[3px_3px_0_0_var(--color-ink)]"
                       : "bg-card text-foreground hover:bg-secondary",
@@ -1050,7 +1167,7 @@ function AddDeadlineDialog({
                   type="button"
                   onClick={() => setIsPersonal(true)}
                   className={cn(
-                    "flex items-center gap-2 rounded-md border-2 border-ink px-3 py-2.5 text-sm font-semibold transition-all",
+                    "flex items-center gap-2 rounded-md border-2 border-ink px-3 py-2.5 text-sm font-semibold cursor-pointer transition-all",
                     isPersonal
                       ? "bg-purple-600 text-white shadow-[3px_3px_0_0_var(--color-ink)]"
                       : "bg-card text-foreground hover:bg-secondary",
@@ -1146,7 +1263,7 @@ function CanvasSyncButton({ blockId }: { blockId: string }) {
           onClick={handleSync}
           disabled={status === "loading"}
           className={cn(
-            "board-sm flex w-full items-center justify-center gap-2 px-4 py-2 text-sm font-bold transition-transform hover:translate-y-[-1px] disabled:pointer-events-none disabled:opacity-60",
+            "board-sm flex w-full items-center justify-center gap-2 px-4 py-2 text-sm font-bold shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)] disabled:pointer-events-none disabled:opacity-60",
             status === "success"
               ? "!bg-[var(--marker-green)] text-white"
               : "bg-card text-foreground",
@@ -1335,7 +1452,8 @@ function OnboardingGate({
         <div className="text-center">
           <h2 className="marker text-2xl sm:text-3xl">Join or Create a Board</h2>
           <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-            Join your class block with an invite code, create a class block, or set up a personal board.
+            Join your class block with an invite code, create a class block, or set up a personal
+            board.
           </p>
           {errorMsg && <p className="mt-3 text-sm font-semibold text-destructive">{errorMsg}</p>}
         </div>
@@ -1359,7 +1477,7 @@ function OnboardingGate({
               <button
                 onClick={handleCreatePersonal}
                 disabled={createBlock.isPending || joinBlock.isPending}
-                className="board-sm flex h-11 w-full items-center justify-center gap-2 font-bold text-white !bg-purple-600 transition-transform hover:translate-y-[-1px] disabled:opacity-70"
+                className="board-sm flex h-11 w-full items-center justify-center gap-2 font-bold text-white !bg-purple-600 shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)] disabled:pointer-events-none disabled:opacity-70"
               >
                 {createBlock.isPending ? "Creating..." : "Create Personal Board"}
               </button>
@@ -1385,7 +1503,7 @@ function OnboardingGate({
               <button
                 onClick={handleJoin}
                 disabled={joinBlock.isPending || createBlock.isPending}
-                className="board-sm flex h-11 w-full items-center justify-center gap-2 font-bold text-white !bg-[var(--marker-blue)] transition-transform hover:translate-y-[-1px] disabled:opacity-70"
+                className="board-sm flex h-11 w-full items-center justify-center gap-2 font-bold text-white !bg-[var(--marker-blue)] shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)] disabled:pointer-events-none disabled:opacity-70"
               >
                 {joinBlock.isPending ? "Joining..." : "Join Block"}
               </button>
@@ -1410,7 +1528,7 @@ function OnboardingGate({
               <button
                 onClick={handleCreate}
                 disabled={createBlock.isPending || joinBlock.isPending}
-                className="board-sm flex h-11 w-full items-center justify-center gap-2 font-bold text-white !bg-[var(--marker-green)] transition-transform hover:translate-y-[-1px] disabled:opacity-70"
+                className="board-sm flex h-11 w-full items-center justify-center gap-2 font-bold text-white !bg-[var(--marker-green)] shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)] disabled:pointer-events-none disabled:opacity-70"
               >
                 {createBlock.isPending ? "Creating..." : "Create Class Block"}
               </button>

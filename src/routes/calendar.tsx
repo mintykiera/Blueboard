@@ -25,6 +25,14 @@ import {
   LeaveBlockDialog,
   DeleteBlockDialog,
 } from "@/components/dashboard/RenameBlockDialog";
+import { DeleteTaskDialog } from "@/components/dashboard/DeleteTaskDialog";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { Trash2, Eye, CheckSquare } from "lucide-react";
 
 export const Route = createFileRoute("/calendar")({
   head: () => ({
@@ -283,6 +291,17 @@ function CalendarPage() {
 
   const today = new Date();
   const [detailTask, setDetailTask] = useState<Task | null>(null);
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      const { error } = await supabase.from("tasks").delete().eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks", blockId] });
+    },
+  });
 
   const year = currentMonthDate.getFullYear();
   const month = currentMonthDate.getMonth();
@@ -531,42 +550,74 @@ function CalendarPage() {
                       due.getTime() > Date.now();
 
                     const courseColor = getCourseColor(task.course_code);
+                    const canDelete =
+                      currentBlock?.role === "beadle" || task.created_by === profile?.id;
 
                     return (
-                      <button
-                        key={task.id}
-                        onClick={() => setDetailTask(task)}
-                        className={cn(
-                          "w-full text-left rounded border border-ink p-1 text-[11px] font-semibold transition-transform hover:scale-[1.02] flex items-center justify-between gap-1 shadow-[1px_1px_0_0_var(--color-ink)]",
-                          task.done && "opacity-50 line-through bg-muted",
-                          isOverdue &&
-                            !task.done &&
-                            "border-rose-600 bg-rose-500/20 text-rose-700 dark:text-rose-300 font-bold shadow-[1.5px_1.5px_0_0_#E11D48]",
-                        )}
-                        title={`${task.title} ${task.due_at ? `(${new Date(task.due_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })})` : ""}`}
-                      >
-                        <div className="flex items-center gap-1 min-w-0">
-                          {task.course_code && (
-                            <span
-                              className="shrink-0 rounded px-1 text-[9px] font-bold text-white"
-                              style={{ background: courseColor }}
+                      <ContextMenu key={task.id}>
+                        <ContextMenuTrigger asChild>
+                          <button
+                            onClick={() => setDetailTask(task)}
+                            className={cn(
+                              "w-full text-left rounded border border-ink p-1 text-[11px] font-semibold cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px] flex items-center justify-between gap-1 shadow-[1px_1px_0_0_var(--color-ink)]",
+                              task.done && "opacity-50 line-through bg-muted",
+                              isOverdue &&
+                                !task.done &&
+                                "border-rose-600 bg-rose-500/20 text-rose-700 dark:text-rose-300 font-bold shadow-[1.5px_1.5px_0_0_#E11D48]",
+                            )}
+                            title={`${task.title} ${task.due_at ? `(${new Date(task.due_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })})` : ""}`}
+                          >
+                            <div className="flex items-center gap-1 min-w-0">
+                              {task.course_code && (
+                                <span
+                                  className="shrink-0 rounded px-1 text-[9px] font-bold text-white"
+                                  style={{ background: courseColor }}
+                                >
+                                  {task.course_code}
+                                </span>
+                              )}
+                              <span className="truncate">{task.title}</span>
+                            </div>
+                            {isOverdue && (
+                              <span className="shrink-0 animate-pulse rounded bg-rose-600 px-1 text-[8px] font-extrabold text-white uppercase">
+                                OVERDUE
+                              </span>
+                            )}
+                            {isUrgent && (
+                              <span className="shrink-0 animate-pulse rounded bg-[var(--marker-red)] px-1 text-[8px] font-bold text-white uppercase">
+                                !
+                              </span>
+                            )}
+                          </button>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent className="w-48 rounded-md border-2 border-ink bg-card p-1 shadow-[4px_4px_0_0_var(--color-ink)]">
+                          <ContextMenuItem
+                            onSelect={() => setDetailTask(task)}
+                            className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold focus:bg-secondary"
+                          >
+                            <Eye className="h-4 w-4 text-[var(--marker-blue)]" />
+                            View Details
+                          </ContextMenuItem>
+                          <ContextMenuItem
+                            onSelect={() =>
+                              toggleMutation.mutate({ taskId: task.id, done: task.done })
+                            }
+                            className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold focus:bg-secondary"
+                          >
+                            <CheckSquare className="h-4 w-4 text-[var(--marker-green)]" />
+                            {task.done ? "Mark Incomplete" : "Mark Complete"}
+                          </ContextMenuItem>
+                          {canDelete && (
+                            <ContextMenuItem
+                              onSelect={() => setTaskToDelete(task)}
+                              className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-destructive focus:bg-destructive/10 focus:text-destructive"
                             >
-                              {task.course_code}
-                            </span>
+                              <Trash2 className="h-4 w-4" />
+                              Delete Task
+                            </ContextMenuItem>
                           )}
-                          <span className="truncate">{task.title}</span>
-                        </div>
-                        {isOverdue && (
-                          <span className="shrink-0 animate-pulse rounded bg-rose-600 px-1 text-[8px] font-extrabold text-white uppercase">
-                            OVERDUE
-                          </span>
-                        )}
-                        {isUrgent && (
-                          <span className="shrink-0 animate-pulse rounded bg-[var(--marker-red)] px-1 text-[8px] font-bold text-white uppercase">
-                            !
-                          </span>
-                        )}
-                      </button>
+                        </ContextMenuContent>
+                      </ContextMenu>
                     );
                   })}
                 </div>
@@ -591,7 +642,9 @@ function CalendarPage() {
               <span>Course Tag</span>
             </div>
           </div>
-          <div className="text-muted-foreground">Click any task pill to view details.</div>
+          <div className="text-muted-foreground">
+            Click any task pill to view details. Right-click for options.
+          </div>
         </div>
       </main>
 
@@ -602,6 +655,19 @@ function CalendarPage() {
           if (!v) setDetailTask(null);
         }}
         onToggle={(taskId, done) => toggleMutation.mutate({ taskId, done })}
+      />
+
+      <DeleteTaskDialog
+        open={!!taskToDelete}
+        onOpenChange={(v) => {
+          if (!v) setTaskToDelete(null);
+        }}
+        taskTitle={taskToDelete?.title || ""}
+        onConfirm={() => {
+          if (taskToDelete) {
+            deleteTaskMutation.mutate(taskToDelete.id);
+          }
+        }}
       />
 
       <RenameBlockDialog
@@ -706,7 +772,7 @@ function CalendarTaskDetailsDialog({
               onOpenChange(false);
             }}
             className={cn(
-              "w-full flex items-center justify-center gap-2 rounded-md border-2 border-ink px-4 py-2.5 text-sm font-bold transition-all shadow-[3px_3px_0_0_var(--color-ink)] hover:translate-y-[-1px] hover:shadow-[4px_4px_0_0_var(--color-ink)]",
+              "w-full flex items-center justify-center gap-2 rounded-md border-2 border-ink px-4 py-2.5 text-sm font-bold cursor-pointer transition-[transform,box-shadow] duration-250 ease-out shadow-[3px_3px_0_0_var(--color-ink)] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]",
               task.done ? "bg-secondary text-foreground" : "bg-[var(--marker-green)] text-white",
             )}
           >

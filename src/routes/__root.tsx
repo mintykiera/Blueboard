@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { AuthProvider, useAuth } from "../hooks/use-auth";
+import { supabase } from "../lib/supabase";
 
 function NotFoundComponent() {
   return (
@@ -137,8 +138,33 @@ function AuthGate() {
   useEffect(() => {
     if (loading) return;
 
+    if (user?.email) {
+      const emailDomain = user.email.split("@")[1]?.toLowerCase() || "";
+      const approvedDomains = [
+        "student.ateneo.edu",
+        "dlsu.edu.ph",
+        "fit.edu.ph",
+        "feu.edu.ph",
+        "ust.edu.ph",
+        "uap.asia",
+        "ciit.edu.ph",
+        "mymail.mapua.edu.ph",
+      ];
+      const isApproved = approvedDomains.some((d) => emailDomain.endsWith(d));
+
+      if (!isApproved) {
+        supabase.auth.signOut();
+        window.location.href = "/login#error_description=Access+Denied%3A+Unapproved+Domain";
+        return;
+      }
+    }
+
     if (!user && !isLoginRoute) {
-      router.navigate({ to: "/login" });
+      if (window.location.hash.includes("error") || window.location.search.includes("error")) {
+        window.location.href = "/login" + window.location.hash + window.location.search;
+      } else {
+        router.navigate({ to: "/login" });
+      }
     } else if (user && isLoginRoute) {
       router.navigate({ to: "/" });
     }

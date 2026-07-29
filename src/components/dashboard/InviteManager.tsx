@@ -31,7 +31,7 @@ export function InviteManager({ inviteCode }: { inviteCode: string }) {
         </div>
         <button
           onClick={handleCopy}
-          className="board-sm flex h-10 w-24 items-center justify-center font-bold text-white !bg-[var(--marker-blue)] transition-transform hover:translate-y-[-1px]"
+          className="board-sm flex h-10 w-24 items-center justify-center font-bold text-white !bg-[var(--marker-blue)] shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]"
         >
           {copied ? "Copied!" : "Copy"}
         </button>

@@ -58,19 +58,10 @@ export function RenameBlockDialog({
             />
           </div>
           <DialogFooter className="gap-2 pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-              className="rounded-md border-2 border-ink font-semibold hover:bg-secondary"
-            >
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={!name.trim() || name.trim() === currentName}
-              className="rounded-md border-2 border-ink bg-[var(--marker-blue)] font-bold text-white shadow-[3px_3px_0_0_var(--color-ink)] hover:bg-[var(--marker-blue)] hover:shadow-[4px_4px_0_0_var(--color-ink)]"
-            >
+            <Button type="submit" disabled={!name.trim() || name.trim() === currentName}>
               Save Name
             </Button>
           </DialogFooter>
@@ -102,23 +93,20 @@ export function LeaveBlockDialog({
         </DialogHeader>
         <div className="space-y-4 px-6 py-5">
           <p className="text-sm font-medium leading-relaxed">
-            Are you sure you want to leave <strong className="font-bold">{blockName}</strong>? You will lose access to its deadlines and announcements.
+            Are you sure you want to leave <strong className="font-bold">{blockName}</strong>? You
+            will lose access to its deadlines and announcements.
           </p>
           <DialogFooter className="gap-2 pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-              className="rounded-md border-2 border-ink font-semibold hover:bg-secondary"
-            >
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button
+              type="button"
+              className="bg-amber-500 hover:bg-amber-500 text-white"
               onClick={() => {
                 onConfirm();
                 onOpenChange(false);
               }}
-              className="rounded-md border-2 border-ink bg-amber-500 font-bold text-white shadow-[3px_3px_0_0_var(--color-ink)] hover:bg-amber-600 hover:shadow-[4px_4px_0_0_var(--color-ink)]"
             >
               Leave Block
             </Button>
@@ -151,23 +139,20 @@ export function DeleteBlockDialog({
         </DialogHeader>
         <div className="space-y-4 px-6 py-5">
           <p className="text-sm font-medium leading-relaxed">
-            Are you sure you want to delete <strong className="font-bold">{blockName}</strong>? This action is permanent and will remove the block for all students.
+            Are you sure you want to delete <strong className="font-bold">{blockName}</strong>? This
+            action is permanent and will remove the block for all students.
           </p>
           <DialogFooter className="gap-2 pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-              className="rounded-md border-2 border-ink font-semibold hover:bg-secondary"
-            >
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button
+              type="button"
+              variant="destructive"
               onClick={() => {
                 onConfirm();
                 onOpenChange(false);
               }}
-              className="rounded-md border-2 border-ink bg-destructive font-bold text-white shadow-[3px_3px_0_0_var(--color-ink)] hover:bg-destructive/90 hover:shadow-[4px_4px_0_0_var(--color-ink)]"
             >
               Delete Permanently
             </Button>

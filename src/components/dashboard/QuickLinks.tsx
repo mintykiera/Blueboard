@@ -129,7 +129,7 @@ export function QuickLinks({ blockId, role }: { blockId: string; role: string })
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
               <button
-                className="board-sm grid h-8 w-8 place-items-center transition-transform hover:translate-y-[-1px]"
+                className="board-sm grid h-8 w-8 place-items-center shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]"
                 aria-label="Add Link"
               >
                 <Plus className="h-4 w-4" />
@@ -164,14 +164,14 @@ export function QuickLinks({ blockId, role }: { blockId: string; role: string })
                   <button
                     type="button"
                     onClick={() => setIsAddOpen(false)}
-                    className="board-sm px-4 py-2 text-sm font-semibold transition-transform hover:translate-y-[-1px]"
+                    className="board-sm px-4 py-2 text-sm font-semibold shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={addMutation.isPending || !newTitle.trim() || !newUrl.trim()}
-                    className="board-sm px-4 py-2 text-sm font-bold !bg-[var(--marker-blue)] text-white transition-transform hover:translate-y-[-1px] disabled:opacity-50"
+                    className="board-sm px-4 py-2 text-sm font-bold !bg-[var(--marker-blue)] text-white shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)] disabled:pointer-events-none disabled:opacity-50"
                   >
                     Add Link
                   </button>
@@ -192,13 +192,13 @@ export function QuickLinks({ blockId, role }: { blockId: string; role: string })
         {links.map((l, i) => (
           <div
             key={l.id}
-            className="board-sm group flex items-center justify-between gap-2 p-3 transition-transform hover:translate-y-[-1px]"
+            className="board-sm group flex items-center justify-between gap-2 p-3 shadow-[4px_4px_0_0_var(--color-ink)] transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]"
           >
             <a
               href={l.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex flex-1 items-center gap-3 min-w-0"
+              className="flex flex-1 items-center gap-3 min-w-0 cursor-pointer"
             >
               <div
                 className="grid h-9 w-9 shrink-0 place-items-center rounded-md border-2 border-ink"
@@ -214,7 +214,7 @@ export function QuickLinks({ blockId, role }: { blockId: string; role: string })
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className="board-sm grid h-7 w-7 shrink-0 place-items-center transition-transform hover:translate-y-[-1px]"
+                    className="board-sm grid h-7 w-7 shrink-0 place-items-center shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]"
                     aria-label="Link actions"
                   >
                     <MoreVertical className="h-3.5 w-3.5" />
@@ -279,14 +279,14 @@ export function QuickLinks({ blockId, role }: { blockId: string; role: string })
               <button
                 type="button"
                 onClick={() => setEditingLink(null)}
-                className="board-sm px-4 py-2 text-sm font-semibold transition-transform hover:translate-y-[-1px]"
+                className="board-sm px-4 py-2 text-sm font-semibold shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={updateMutation.isPending || !editTitle.trim() || !editUrl.trim()}
-                className="board-sm px-4 py-2 text-sm font-bold !bg-[var(--marker-blue)] text-white transition-transform hover:translate-y-[-1px] disabled:opacity-50"
+                className="board-sm px-4 py-2 text-sm font-bold !bg-[var(--marker-blue)] text-white shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)] disabled:pointer-events-none disabled:opacity-50"
               >
                 Save Changes
               </button>

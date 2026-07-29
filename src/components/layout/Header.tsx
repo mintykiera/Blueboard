@@ -48,7 +48,7 @@ export function UserPill() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="board-sm inline-flex items-center gap-2 py-1 pl-1 pr-2 sm:pr-3 transition-transform hover:translate-y-[-1px]">
+        <button className="board-sm inline-flex items-center gap-2 py-1 pl-1 pr-2 sm:pr-3 shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]">
           {profile?.avatar_url ? (
             <img
               src={profile.avatar_url}
@@ -63,7 +63,9 @@ export function UserPill() {
               {initials}
             </div>
           )}
-          <span className="hidden sm:inline max-w-[160px] truncate text-xs font-semibold">{displayEmail}</span>
+          <span className="hidden sm:inline max-w-[160px] truncate text-xs font-semibold">
+            {displayEmail}
+          </span>
           <ChevronDown className="hidden sm:block h-3 w-3 text-muted-foreground" />
         </button>
       </DropdownMenuTrigger>
@@ -125,7 +127,7 @@ function BlockSelector({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="board-sm inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-transform hover:translate-y-[-1px]">
+        <button className="board-sm inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]">
           <BookOpen className="h-4 w-4" />
           <span>{blockName || "Select Block"}</span>
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -248,7 +250,7 @@ function BlockActionsMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="board-sm grid h-9 w-9 place-items-center transition-transform hover:translate-y-[-1px]"
+          className="board-sm grid h-9 w-9 place-items-center shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]"
           aria-label="Block Actions"
           title="Block Settings"
         >
@@ -364,7 +366,7 @@ function MembersDropdown({ currentBlock }: { currentBlock?: BlockOption }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="board-sm inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-sm font-semibold transition-transform hover:translate-y-[-1px]">
+        <button className="board-sm inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-sm font-semibold shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]">
           <Users className="h-4 w-4" strokeWidth={2.5} />
           <span className="hidden sm:inline">Members</span>
         </button>
@@ -415,7 +417,7 @@ function MembersDropdown({ currentBlock }: { currentBlock?: BlockOption }) {
                 {prof?.id !== profile?.id && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button className="grid h-6 w-6 place-items-center rounded bg-secondary hover:bg-muted transition-colors">
+                      <button className="grid h-6 w-6 place-items-center rounded bg-secondary hover:bg-muted transition-colors cursor-pointer">
                         <MoreHorizontal className="h-3.5 w-3.5" />
                       </button>
                     </DropdownMenuTrigger>
@@ -499,7 +501,7 @@ export function Header({
   return (
     <header className="sticky top-0 z-40 border-b-2 border-ink bg-background/95 backdrop-blur">
       <div className="mx-auto flex items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
-        <a href="/" className="flex items-center gap-2">
+        <a href="/" className="flex items-center gap-2 cursor-pointer">
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border-2 border-ink bg-white">
             <img
               src="/blueboard-removebg-preview.png"
@@ -537,7 +539,7 @@ export function Header({
           {isCalendarPage && (
             <a
               href="/"
-              className="board-sm inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-sm font-bold bg-secondary transition-transform hover:translate-y-[-1px]"
+              className="board-sm inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-sm font-bold bg-secondary shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]"
             >
               <ArrowLeft className="h-4 w-4" strokeWidth={2.5} />{" "}
               <span className="hidden sm:inline">Back</span>
@@ -548,13 +550,13 @@ export function Header({
 
           <a
             href="/calendar"
-            className="board-sm hidden sm:inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold transition-transform hover:translate-y-[-1px]"
+            className="board-sm hidden sm:inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]"
           >
             <CalendarIcon className="h-4 w-4" strokeWidth={2.5} /> Calendar
           </a>
           <a
             href="/calendar"
-            className="board-sm grid h-9 w-9 sm:hidden place-items-center transition-transform hover:translate-y-[-1px]"
+            className="board-sm grid h-9 w-9 sm:hidden place-items-center shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]"
             aria-label="Calendar"
           >
             <CalendarIcon className="h-4 w-4" strokeWidth={2.5} />
@@ -564,13 +566,13 @@ export function Header({
             <>
               <button
                 onClick={onAdd}
-                className="board-sm hidden sm:inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold !bg-[var(--marker-blue)] text-white transition-transform hover:translate-y-[-1px] hover:!bg-[var(--marker-blue)]"
+                className="board-sm hidden sm:inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold !bg-[var(--marker-blue)] text-white shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)] hover:!bg-[var(--marker-blue)]"
               >
                 <Plus className="h-4 w-4" strokeWidth={2.5} /> Add Deadline
               </button>
               <button
                 onClick={onAdd}
-                className="board-sm grid h-9 w-9 sm:hidden place-items-center !bg-[var(--marker-blue)] text-white transition-transform hover:translate-y-[-1px] hover:!bg-[var(--marker-blue)]"
+                className="board-sm grid h-9 w-9 sm:hidden place-items-center !bg-[var(--marker-blue)] text-white shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)] hover:!bg-[var(--marker-blue)]"
               >
                 <Plus className="h-5 w-5" strokeWidth={2.5} />
               </button>
@@ -578,7 +580,7 @@ export function Header({
           )}
           <UserPill />
           <button
-            className="board-sm grid h-9 w-9 md:hidden place-items-center transition-transform hover:translate-y-[-1px]"
+            className="board-sm grid h-9 w-9 md:hidden place-items-center shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]"
             onClick={() => setMobileOpen((v) => !v)}
             aria-label="Menu"
           >

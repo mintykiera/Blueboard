@@ -275,7 +275,7 @@ export function BeadleBoard({ blockId, role }: { blockId: string; role: string }
             <button
               type="submit"
               disabled={addMutation.isPending || !newContent.trim()}
-              className="board-sm flex h-9 items-center gap-2 px-4 font-bold text-white !bg-[var(--marker-blue)] transition-transform hover:translate-y-[-1px] disabled:opacity-50"
+              className="board-sm flex h-9 items-center gap-2 px-4 font-bold text-white !bg-[var(--marker-blue)] shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)] disabled:pointer-events-none disabled:opacity-50"
             >
               <Send className="h-3.5 w-3.5" strokeWidth={2.5} /> Post
             </button>
@@ -315,7 +315,7 @@ export function BeadleBoard({ blockId, role }: { blockId: string; role: string }
                 <button
                   onClick={() => deleteMutation.mutate(n.id)}
                   disabled={deleteMutation.isPending}
-                  className="absolute right-2 top-2 rounded border-2 border-transparent p-0.5 text-ink/40 transition-colors hover:border-ink hover:bg-white/50 hover:text-ink sm:opacity-0 sm:group-hover:opacity-100"
+                  className="absolute right-2 top-2 rounded border-2 border-transparent p-0.5 text-ink/40 cursor-pointer transition-colors hover:border-ink hover:bg-white/50 hover:text-ink sm:opacity-0 sm:group-hover:opacity-100"
                   aria-label="Delete announcement"
                 >
                   <X className="h-3 w-3" strokeWidth={3} />
