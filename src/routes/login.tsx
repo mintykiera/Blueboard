@@ -47,7 +47,6 @@ function LoginPage() {
 
       if (errorDesc || combined.includes("error")) {
         setShowAccessDeniedModal(true);
-        // Clear the URL hash & query string so it doesn't persist on page refresh
         window.history.replaceState(null, "", window.location.pathname);
       }
     }

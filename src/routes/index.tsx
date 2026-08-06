@@ -53,7 +53,7 @@ import { BeadleBoard } from "@/components/dashboard/BeadleBoard";
 import { QuickLinks } from "@/components/dashboard/QuickLinks";
 import { InviteManager } from "@/components/dashboard/InviteManager";
 import { Header, UserPill } from "@/components/layout/Header";
-import { syncCanvasIcs } from "@/lib/canvas-sync";
+import { syncCanvasIcs, htmlToMarkdown } from "@/lib/canvas-sync";
 import {
   RenameBlockDialog,
   LeaveBlockDialog,
@@ -364,8 +364,10 @@ function Blueboard() {
           };
         })
         .filter((t) => {
-          if (t.isBeadleTask) return true;
-          return t.isUserCreator;
+          if (t.is_personal) {
+            return t.created_by === profile?.id;
+          }
+          return true;
         }),
     [rawTasks, completionSet, beadleProfileIds, profile?.id],
   );
@@ -813,12 +815,57 @@ function FilterBar({
   );
 }
 
-function extractCanvasUrl(description: string | null): string | null {
-  if (!description) return null;
-  const match = description.match(/https?:\/\/[^\s)"'>]+\.instructure\.com\/[^\s)"'>]+/);
-  if (match) return match[0];
-  const genericMatch = description.match(/https?:\/\/[^\s)"'>]+\/courses\/\d+\/assignments\/\d+/);
-  return genericMatch ? genericMatch[0] : null;
+function extractCanvasUrl(description: string | null, canvasUid?: string | null): string | null {
+  if (!description && !canvasUid) return null;
+
+  if (description) {
+    const directAssignment = description.match(
+      /(?:https?:)?\/\/[^\s)"'>]+\/courses\/\d+\/assignments\/\d+[^\s)"'>]*/i,
+    );
+    if (directAssignment) {
+      let url = directAssignment[0].replace(/[)\],.]+$|\)+$/, "");
+      return url.startsWith("//") ? "https:" + url : url;
+    }
+  }
+
+  const assignmentId =
+    canvasUid?.match(/\d+/)?.[0] ||
+    description?.match(/event_id=(\d+)/i)?.[1] ||
+    description?.match(/assignment_id=(\d+)/i)?.[1];
+
+  const courseId =
+    description?.match(/\/courses\/(\d+)/i)?.[1] || description?.match(/course_(\d+)/i)?.[1];
+
+  const domainMatch = description?.match(/(?:https?:)?\/\/([^\/]+\.instructure\.com)/i);
+  const domain = domainMatch ? domainMatch[1] : "ateneo.instructure.com";
+
+  if (courseId && assignmentId) {
+    return `https://${domain}/courses/${courseId}/assignments/${assignmentId}`;
+  }
+
+  if (description) {
+    const externalMatch = description.match(
+      /(?:https?:)?\/\/[^\s)"'>]+\.(?:google\.com|forms\.gle|github\.com|notion\.so|figma\.com)[^\s)"'>]*/i,
+    );
+    if (externalMatch) {
+      let url = externalMatch[0].replace(/[)\],.]+$|\)+$/, "");
+      return url.startsWith("//") ? "https:" + url : url;
+    }
+  }
+
+  if (courseId) {
+    return `https://${domain}/courses/${courseId}`;
+  }
+
+  if (description) {
+    const genericMatch = description.match(/(?:https?:)?\/\/[^\s)"'>]+\.[a-z]{2,}[^\s)"'>]*/i);
+    if (genericMatch) {
+      let url = genericMatch[0].replace(/[)\],.]+$|\)+$/, "");
+      return url.startsWith("//") ? "https:" + url : url;
+    }
+  }
+
+  return null;
 }
 
 function TaskCard({
@@ -839,7 +886,7 @@ function TaskCard({
   const isOverdue = !task.done && due !== null && due.getTime() < Date.now();
   const isUrgent = !task.done && !isOverdue && hoursLeft < 24 && hoursLeft > 0;
   const courseColor = getCourseColor(task.course_code);
-  const canvasUrl = task.source === "canvas_ics" ? extractCanvasUrl(task.description) : null;
+  const canvasUrl = extractCanvasUrl(task.description, task.canvas_uid);
 
   return (
     <ContextMenu>
@@ -916,9 +963,10 @@ function TaskCard({
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
                   className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-[#E74C3C] px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)] hover:bg-[#C0392B] transition-colors"
-                  title="Open in Canvas"
+                  title={canvasUrl.includes("instructure.com") ? "Open in Canvas" : "Open Link"}
                 >
-                  <ExternalLink className="h-3 w-3" strokeWidth={2.5} /> Canvas
+                  <ExternalLink className="h-3 w-3" strokeWidth={2.5} />{" "}
+                  {canvasUrl.includes("instructure.com") ? "Canvas" : "Link"}
                 </a>
               )}
             </div>
@@ -1009,23 +1057,23 @@ function TaskDetailsDialog({
   if (!task) return null;
   const due = task.due_at ? new Date(task.due_at) : null;
   const courseColor = getCourseColor(task.course_code);
-  const canvasUrl = task.source === "canvas_ics" ? extractCanvasUrl(task.description) : null;
+  const canvasUrl = extractCanvasUrl(task.description, task.canvas_uid);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="board max-w-lg gap-0 border-2 p-0 shadow-[6px_6px_0_0_var(--color-ink)]">
-        {canvasUrl && (
-          <a
-            href={canvasUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="absolute right-4 top-14 grid h-8 w-8 place-items-center rounded-lg border-2 border-ink bg-[#E74C3C] text-white shadow-[2px_2px_0_0_var(--color-ink)] transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none cursor-pointer z-10"
-            title="Open in Canvas"
-          >
-            <ExternalLink className="h-4 w-4" strokeWidth={2.5} />
-          </a>
-        )}
-        <DialogHeader className="border-b-2 border-ink px-6 py-4 pr-14">
+        <DialogHeader className="relative border-b-2 border-ink px-6 py-4 pr-10">
+          {canvasUrl && (
+            <a
+              href={canvasUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="absolute right-4 bottom-3.5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              title={canvasUrl.includes("instructure.com") ? "Open in Canvas" : "Open Link"}
+            >
+              <ExternalLink className="h-4 w-4" strokeWidth={2} />
+            </a>
+          )}
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <span
               className="inline-flex items-center rounded-md border-2 border-ink px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]"
@@ -1043,7 +1091,7 @@ function TaskDetailsDialog({
               </span>
             )}
           </div>
-          <DialogTitle className="text-xl font-bold">{task.title}</DialogTitle>
+          <DialogTitle className="text-xl font-bold break-words">{task.title}</DialogTitle>
           {due && (
             <p className="mt-1 text-sm font-medium text-muted-foreground">
               Due:{" "}
@@ -1059,8 +1107,10 @@ function TaskDetailsDialog({
         </DialogHeader>
         <div className="px-6 py-5">
           {task.description ? (
-            <div className="prose prose-sm max-w-none [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-3 [&_h2]:mb-1.5 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mt-2 [&_h3]:mb-1 [&_p]:text-sm [&_p]:leading-relaxed [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-2 [&_li]:text-sm [&_li]:mb-0.5 [&_a]:text-[var(--marker-blue)] [&_a]:underline [&_code]:rounded [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-xs [&_code]:font-mono [&_pre]:rounded-md [&_pre]:border-2 [&_pre]:border-ink [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:mb-3 [&_blockquote]:border-l-4 [&_blockquote]:border-[var(--marker-blue)] [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_strong]:font-bold [&_em]:italic [&_hr]:border-ink [&_hr]:my-4">
-              <Markdown remarkPlugins={[remarkGfm]}>{task.description}</Markdown>
+            <div className="prose prose-sm max-w-none break-words [overflow-wrap:anywhere] [&_a]:break-all [&_a]:text-[var(--marker-blue)] [&_a]:underline [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-3 [&_h2]:mb-1.5 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mt-2 [&_h3]:mb-1 [&_p]:text-sm [&_p]:leading-relaxed [&_p]:mb-2 [&_p]:break-words [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-2 [&_li]:text-sm [&_li]:mb-0.5 [&_code]:rounded [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-xs [&_code]:font-mono [&_pre]:rounded-md [&_pre]:border-2 [&_pre]:border-ink [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:mb-3 [&_blockquote]:border-l-4 [&_blockquote]:border-[var(--marker-blue)] [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_strong]:font-bold [&_em]:italic [&_hr]:border-ink [&_hr]:my-4">
+              <Markdown remarkPlugins={[remarkGfm]}>
+                {htmlToMarkdown(task.description).replace(/(^|\s)\/\//g, "$1https://")}
+              </Markdown>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground italic">No description provided.</p>

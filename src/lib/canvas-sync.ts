@@ -7,11 +7,14 @@ interface IcsEvent {
   dtstart: Date | null;
   dtend: Date | null;
   description: string;
+  descriptionHtml?: string;
+  url?: string;
 }
 
 function unfoldIcs(raw: string): string {
   return raw
     .replace(/\r\n[ \t]/g, "")
+    .replace(/\n[ \t]/g, "")
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n");
 }
@@ -41,6 +44,20 @@ function unescapeIcs(text: string): string {
     .replace(/\\\\/g, "\\");
 }
 
+export function htmlToMarkdown(html: string): string {
+  if (!html) return "";
+  let md = html
+    .replace(/<a\s+[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gi, "[$2]($1)")
+    .replace(/<(?:strong|b)>(.*?)<\/(?:strong|b)>/gi, "**$1**")
+    .replace(/<(?:em|i)>(.*?)<\/(?:em|i)>/gi, "*$1*")
+    .replace(/<p[^>]*>/gi, "")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "");
+
+  return unescapeIcs(md).trim();
+}
+
 function parseIcs(icsText: string): IcsEvent[] {
   const lines = unfoldIcs(icsText).split("\n");
   const events: IcsEvent[] = [];
@@ -56,34 +73,41 @@ function parseIcs(icsText: string): IcsEvent[] {
     }
     if (t === "END:VEVENT") {
       inEvent = false;
+      if (!cur.uid && (cur.summary || cur.dtstart)) {
+        cur.uid = `event-${events.length}-${cur.dtstart?.getTime() || Math.random()}`;
+      }
       if (cur.uid && cur.summary) events.push(cur as IcsEvent);
       continue;
     }
     if (!inEvent) continue;
 
-    const propMatch = t.match(/^([A-Z\-]+)([;:].*)$/);
-    if (!propMatch) continue;
-    const propName = propMatch[1];
-    const rest = propMatch[2];
-    const lastColon = rest.lastIndexOf(":");
-    if (lastColon === -1) continue;
-    const rawValue = rest.substring(lastColon + 1);
+    const firstColon = t.indexOf(":");
+    if (firstColon === -1) continue;
+    const propHeader = t.substring(0, firstColon);
+    const rawValue = t.substring(firstColon + 1);
+    const propName = propHeader.split(";")[0].toUpperCase();
 
     switch (propName) {
       case "UID":
-        cur.uid = rawValue;
+        cur.uid = rawValue.trim();
         break;
       case "SUMMARY":
         cur.summary = unescapeIcs(rawValue);
         break;
+      case "URL":
+        cur.url = unescapeIcs(rawValue.trim());
+        break;
       case "DTSTART":
-        cur.dtstart = parseIcsDate(rest.substring(1));
+        cur.dtstart = parseIcsDate(rawValue);
         break;
       case "DTEND":
-        cur.dtend = parseIcsDate(rest.substring(1));
+        cur.dtend = parseIcsDate(rawValue);
         break;
       case "DESCRIPTION":
         cur.description = unescapeIcs(rawValue);
+        break;
+      case "X-ALT-DESC":
+        cur.descriptionHtml = unescapeIcs(rawValue);
         break;
     }
   }
@@ -96,11 +120,12 @@ function extractCourseCode(summary: string): string | null {
 }
 
 function cleanTitle(summary: string, courseCode: string | null): string {
-  if (!courseCode) return summary.trim();
-  const escaped = courseCode.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return (
-    summary.replace(new RegExp(`\\[?${escaped}\\]?\\s*[-:–—]?\\s*`), "").trim() || summary.trim()
-  );
+  let title = summary.trim();
+  if (courseCode) {
+    const escaped = courseCode.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    title = title.replace(new RegExp(`\\[?${escaped}\\]?\\s*[-:–—]?\\s*`, "i"), "").trim();
+  }
+  return title.replace(/^[\]\)\s\-:_]+|[\]\)\s\-:_]+$/g, "").trim() || summary.trim();
 }
 
 export async function syncCanvasIcs(blockId: string, icsUrl: string, userId: string) {
@@ -168,12 +193,37 @@ export async function syncCanvasIcs(blockId: string, icsUrl: string, userId: str
     return { success: true, count: 0, message: "No events found in the .ics file." };
   }
 
+  const domainMatch = icsUrl.match(/(?:https?:)?\/\/([^\/]+\.instructure\.com)/i);
+  const domain = domainMatch ? domainMatch[1] : "ateneo.instructure.com";
+
   const rows = events.map((ev) => {
     const courseCode = extractCourseCode(ev.summary);
+    let desc = "";
+
+    if (ev.descriptionHtml && ev.descriptionHtml.includes("<")) {
+      desc = htmlToMarkdown(ev.descriptionHtml);
+    } else if (ev.description && ev.description.includes("<")) {
+      desc = htmlToMarkdown(ev.description);
+    } else {
+      desc = ev.description || "";
+    }
+
+    const courseId = desc.match(/\/courses\/(\d+)/i)?.[1] || ev.url?.match(/course_(\d+)/i)?.[1];
+    const assignmentId = ev.uid.match(/\d+/)?.[0] || ev.url?.match(/event_id=(\d+)/i)?.[1];
+
+    if (courseId && assignmentId) {
+      const assignmentUrl = `https://${domain}/courses/${courseId}/assignments/${assignmentId}`;
+      if (!desc.includes(assignmentUrl)) {
+        desc = assignmentUrl + (desc ? "\n\n" + desc : "");
+      }
+    } else if (ev.url && !desc.includes(ev.url)) {
+      desc = ev.url + (desc ? "\n\n" + desc : "");
+    }
+
     return {
       block_id: blockId,
       title: cleanTitle(ev.summary, courseCode),
-      description: ev.description || null,
+      description: desc || null,
       course_code: courseCode,
       due_at: (ev.dtend || ev.dtstart)?.toISOString() || null,
       source: "canvas_ics" as const,
