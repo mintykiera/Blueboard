@@ -173,6 +173,7 @@ export async function syncCanvasIcs(blockId: string, icsUrl: string, userId: str
     return {
       block_id: blockId,
       title: cleanTitle(ev.summary, courseCode),
+      description: ev.description || null,
       course_code: courseCode,
       due_at: (ev.dtend || ev.dtstart)?.toISOString() || null,
       source: "canvas_ics" as const,

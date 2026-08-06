@@ -810,6 +810,14 @@ function FilterBar({
   );
 }
 
+function extractCanvasUrl(description: string | null): string | null {
+  if (!description) return null;
+  const match = description.match(/https?:\/\/[^\s)"'>]+\.instructure\.com\/[^\s)"'>]+/);
+  if (match) return match[0];
+  const genericMatch = description.match(/https?:\/\/[^\s)"'>]+\/courses\/\d+\/assignments\/\d+/);
+  return genericMatch ? genericMatch[0] : null;
+}
+
 function TaskCard({
   task,
   onToggle,
@@ -828,6 +836,7 @@ function TaskCard({
   const isOverdue = !task.done && due !== null && due.getTime() < Date.now();
   const isUrgent = !task.done && !isOverdue && hoursLeft < 24 && hoursLeft > 0;
   const courseColor = getCourseColor(task.course_code);
+  const canvasUrl = task.source === "canvas_ics" ? extractCanvasUrl(task.description) : null;
 
   return (
     <ContextMenu>
@@ -896,6 +905,18 @@ function TaskCard({
                 <span className="inline-flex items-center rounded-md border-2 border-ink bg-[var(--marker-red)] px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)]">
                   URGENT
                 </span>
+              )}
+              {canvasUrl && (
+                <a
+                  href={canvasUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 rounded-md border-2 border-ink bg-[#E74C3C] px-2 py-0.5 text-[11px] font-bold text-white shadow-[1px_1px_0_0_var(--color-ink)] hover:bg-[#C0392B] transition-colors"
+                  title="Open in Canvas"
+                >
+                  <ExternalLink className="h-3 w-3" strokeWidth={2.5} /> Canvas
+                </a>
               )}
             </div>
             <h3
@@ -985,6 +1006,7 @@ function TaskDetailsDialog({
   if (!task) return null;
   const due = task.due_at ? new Date(task.due_at) : null;
   const courseColor = getCourseColor(task.course_code);
+  const canvasUrl = task.source === "canvas_ics" ? extractCanvasUrl(task.description) : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1022,6 +1044,17 @@ function TaskDetailsDialog({
           )}
         </DialogHeader>
         <div className="px-6 py-5">
+          {canvasUrl && (
+            <a
+              href={canvasUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mb-4 board-sm inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-white !bg-[#E74C3C] shadow-[4px_4px_0_0_var(--color-ink)] cursor-pointer transition-[transform,box-shadow] duration-250 ease-out hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0_0_var(--color-ink)] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_var(--color-ink)]"
+            >
+              <ExternalLink className="h-4 w-4" strokeWidth={2.5} />
+              Open in Canvas
+            </a>
+          )}
           {task.description ? (
             <div className="prose prose-sm max-w-none [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-3 [&_h2]:mb-1.5 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mt-2 [&_h3]:mb-1 [&_p]:text-sm [&_p]:leading-relaxed [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-2 [&_li]:text-sm [&_li]:mb-0.5 [&_a]:text-[var(--marker-blue)] [&_a]:underline [&_code]:rounded [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-xs [&_code]:font-mono [&_pre]:rounded-md [&_pre]:border-2 [&_pre]:border-ink [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:mb-3 [&_blockquote]:border-l-4 [&_blockquote]:border-[var(--marker-blue)] [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_strong]:font-bold [&_em]:italic [&_hr]:border-ink [&_hr]:my-4">
               <Markdown remarkPlugins={[remarkGfm]}>{task.description}</Markdown>
