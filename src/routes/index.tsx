@@ -348,7 +348,10 @@ function Blueboard() {
       rawTasks
         .map((t: any) => {
           const isBeadleCreator = t.created_by && beadleProfileIds.has(t.created_by);
-          const isBeadleTask = t.source === "manual" && isBeadleCreator && !t.is_personal;
+          const isBeadleTask =
+            (t.source === "manual" || t.source === "canvas_ics") &&
+            isBeadleCreator &&
+            !t.is_personal;
           const isPersonalTask = !isBeadleTask;
           const isUserCreator = t.created_by === profile?.id;
 
