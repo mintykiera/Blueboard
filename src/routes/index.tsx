@@ -1057,7 +1057,7 @@ function TaskDetailsDialog({
             </p>
           )}
         </DialogHeader>
-        <div className="px-6 py-5 max-h-[50vh] overflow-y-auto">
+        <div className="px-6 py-5">
           {task.description ? (
             <div className="prose prose-sm max-w-none [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-3 [&_h2]:mb-1.5 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mt-2 [&_h3]:mb-1 [&_p]:text-sm [&_p]:leading-relaxed [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-2 [&_li]:text-sm [&_li]:mb-0.5 [&_a]:text-[var(--marker-blue)] [&_a]:underline [&_code]:rounded [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-xs [&_code]:font-mono [&_pre]:rounded-md [&_pre]:border-2 [&_pre]:border-ink [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:mb-3 [&_blockquote]:border-l-4 [&_blockquote]:border-[var(--marker-blue)] [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_strong]:font-bold [&_em]:italic [&_hr]:border-ink [&_hr]:my-4">
               <Markdown remarkPlugins={[remarkGfm]}>{task.description}</Markdown>
