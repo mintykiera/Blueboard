@@ -273,12 +273,6 @@ function LoginPage() {
                     *@ciit.edu.ph
                   </code>
                 </li>
-                <li className="flex items-center justify-between gap-2">
-                  <span className="font-bold text-foreground">Mapúa:</span>
-                  <code className="rounded border border-ink bg-secondary px-1.5 py-0.5 font-mono text-[11px]">
-                    *@mymail.mapua.edu.ph
-                  </code>
-                </li>
               </ul>
             </div>
 

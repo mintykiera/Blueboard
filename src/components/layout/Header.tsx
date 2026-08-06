@@ -53,7 +53,7 @@ export function UserPill() {
             <img
               src={profile.avatar_url}
               alt={initials}
-              className="h-7 w-7 rounded-full border-2 border-ink object-cover"
+              className="h-7 w-7 shrink-0 aspect-square rounded-full border-2 border-ink object-cover"
             />
           ) : (
             <div
@@ -499,9 +499,9 @@ export function Header({
   const activeBlock = blocks.find((b) => b.id === currentBlockId);
 
   return (
-    <header className="sticky top-0 z-40 border-b-2 border-ink bg-background/95 backdrop-blur">
-      <div className="mx-auto flex items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
-        <a href="/" className="flex items-center gap-2 cursor-pointer">
+    <header className="sticky top-0 z-40 border-b-2 border-ink bg-background/95 backdrop-blur overflow-x-clip">
+      <div className="mx-auto flex items-center justify-between gap-2 sm:gap-3 px-4 py-3 sm:px-6 lg:px-8">
+        <a href="/" className="flex shrink-0 items-center gap-2 cursor-pointer">
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border-2 border-ink bg-white">
             <img
               src="/blueboard-removebg-preview.png"
@@ -535,7 +535,7 @@ export function Header({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
           {isCalendarPage && (
             <a
               href="/"

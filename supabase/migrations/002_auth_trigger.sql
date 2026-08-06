@@ -1,8 +1,5 @@
-create or replace function public.handle_new_user()
-returns trigger
-security definer
-set search_path = ''
-as $$
+CREATE    OR REPLACE FUNCTION public.handle_new_user () returns trigger security definer
+SET       search_path = '' AS $$
 declare
   _email       text;
   _full_name   text;
@@ -41,18 +38,12 @@ begin
   return new;
 end;
 $$ language plpgsql;
-
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row
-  execute function public.handle_new_user();
-
-create or replace function public.handle_user_updated()
-returns trigger
-security definer
-set search_path = ''
-as $$
+DROP      TRIGGER if EXISTS on_auth_user_created ON auth.users;
+CREATE    TRIGGER on_auth_user_created
+AFTER     insert ON auth.users FOR each ROW
+EXECUTE   function public.handle_new_user ();
+CREATE    OR REPLACE FUNCTION public.handle_user_updated () returns trigger security definer
+SET       search_path = '' AS $$
 begin
   update public.profiles set
     full_name  = coalesce(
@@ -71,9 +62,8 @@ begin
   return new;
 end;
 $$ language plpgsql;
-
-drop trigger if exists on_auth_user_updated on auth.users;
-create trigger on_auth_user_updated
-  after update on auth.users
-  for each row
-  execute function public.handle_user_updated();
+DROP      TRIGGER if EXISTS on_auth_user_updated ON auth.users;
+CREATE    TRIGGER on_auth_user_updated
+AFTER    
+UPDATE    ON auth.users FOR each ROW
+EXECUTE   function public.handle_user_updated ();

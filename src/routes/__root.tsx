@@ -148,7 +148,6 @@ function AuthGate() {
         "ust.edu.ph",
         "uap.asia",
         "ciit.edu.ph",
-        "mymail.mapua.edu.ph",
       ];
       const isApproved = approvedDomains.some((d) => emailDomain.endsWith(d));
 
